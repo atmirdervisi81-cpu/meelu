@@ -32,8 +32,12 @@ Città pilota: Jesi (AN, Marche).
 
 ## Come far provare l'app agli amici
 
-1. Apri `frontend/app.html` in un browser (va bene anche solo aprendo il
-   file, oppure ospitalo su un hosting statico se vuoi un link condivisibile).
+**Link live**: https://wkqmfdkjrfkwwlnlwusk.supabase.co/functions/v1/app
+(pagina `frontend/app.html`, pubblicata come funzione Supabase — nessun
+hosting da configurare; per ripubblicarla dopo una modifica vedi
+"Aggiornare il link live" più sotto).
+
+1. Apri il link sopra in un browser (funziona anche da telefono).
 2. Dai a ciascun amico **un codice invito diverso** tra questi (già creati
    nel database, uno a testa, si consumano al primo uso):
 
@@ -59,6 +63,14 @@ Limite noto di questa fase di test: senza generare i codici invito manualmente
 uno a uno, chiunque ottenga un link Supabase valido conosce solo la chiave
 pubblica (mai quella segreta) — l'accesso a dati reali resta comunque
 condizionato al login e ai controlli lato database sopra descritti.
+
+### Aggiornare il link live dopo una modifica
+
+`frontend/app.html` è pubblicato com'è, tal quale, come corpo di risposta di
+una funzione Supabase Edge chiamata `app` (progetto `wkqmfdkjrfkwwlnlwusk`).
+Non si aggiorna da sola quando modifichi il file nel repository: dopo ogni
+modifica va ripubblicata (in una sessione Claude Code, basta chiedere di
+ridistribuire `frontend/app.html` sulla funzione edge `app`).
 
 ## Struttura
 
