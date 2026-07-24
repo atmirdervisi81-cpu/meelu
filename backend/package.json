@@ -1,0 +1,13 @@
+{
+  "name": "meelu-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend Meelu: nessuna dipendenza esterna, solo moduli nativi Node.js (richiede Node >= 18 per fetch)",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  }
+}

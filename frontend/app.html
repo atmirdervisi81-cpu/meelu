@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meelu</title>
+<style>
+  :root {
+    --base: #f6f5f2;
+    --corallo: #ff5a3c;
+    --indaco: #4b3f8c;
+    --verde: #1fa97e;
+    --testo: #221f2b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--base);
+    color: var(--testo);
+    font-family: Inter, system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 64px;
+  }
+  main { width: 100%; max-width: 480px; }
+  h1 {
+    font-family: "Space Grotesk", Inter, sans-serif;
+    font-size: 28px;
+    margin: 0 0 4px;
+  }
+  .sub { color: #6b6673; margin-bottom: 24px; font-size: 14px; }
+  section {
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+  section h2 {
+    font-family: "Space Grotesk", Inter, sans-serif;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--indaco);
+    margin: 0 0 12px;
+  }
+  label { display: block; font-size: 13px; margin: 10px 0 4px; color: #4a4652; }
+  input {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid #d8d5d0;
+    font-family: inherit;
+    font-size: 14px;
+  }
+  button {
+    margin-top: 12px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--corallo); color: #fff; }
+  .btn-secondary { background: #ece9e4; color: var(--testo); }
+  .btn-verde { background: var(--verde); color: #fff; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .candidate {
+    border: 1px solid #eae7e2;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .candidate small { color: #6b6673; display: block; margin-top: 2px; }
+  .status {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    white-space: pre-wrap;
+    background: #f1efec;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 10px;
+  }
+  .match-card {
+    border: 2px solid var(--verde);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Meelu</h1>
+  <div class="sub">Interfaccia minimale di prova &mdash; collegata al backend via fetch.</div>
+
+  <section>
+    <h2>Backend</h2>
+    <label for="backendUrl">URL del backend</label>
+    <input id="backendUrl" value="http://localhost:3000" />
+  </section>
+
+  <section>
+    <h2>1. Profilo</h2>
+    <label for="name">Nome</label>
+    <input id="name" placeholder="es. Alice" />
+    <label for="birthYear">Anno di nascita</label>
+    <input id="birthYear" type="number" placeholder="1994" />
+    <label for="interests">Interessi (separati da virgola)</label>
+    <input id="interests" placeholder="scacchi, trekking, fotografia" />
+    <button class="btn-primary" onclick="createUser()">Crea profilo</button>
+    <div id="userStatus" class="status" hidden></div>
+  </section>
+
+  <section>
+    <h2>2. Disponibilità</h2>
+    <div class="btn-row">
+      <button class="btn-verde" onclick="goAvailable()">Sono libero/a ora</button>
+      <button class="btn-secondary" onclick="goOffline()">Non sono più disponibile</button>
+    </div>
+    <div id="availabilityStatus" class="status" hidden></div>
+  </section>
+
+  <section>
+    <h2>3. Persone vicine</h2>
+    <button class="btn-secondary" onclick="loadMatches()">Cerca persone vicine</button>
+    <div id="candidates"></div>
+  </section>
+
+  <section>
+    <h2>4. Proposta in corso</h2>
+    <label for="proposalId">Id proposta</label>
+    <input id="proposalId" placeholder="verrà compilato automaticamente" />
+    <div class="btn-row">
+      <button class="btn-verde" onclick="respond('accept')">Sì, accetto</button>
+      <button class="btn-secondary" onclick="respond('decline')">No, non ora</button>
+      <button class="btn-secondary" onclick="checkStatus()">Controlla stato</button>
+    </div>
+    <div id="proposalStatus" class="status" hidden></div>
+  </section>
+
+  <section>
+    <h2>5. Biglietto d'incontro</h2>
+    <label for="place">Luogo</label>
+    <input id="place" placeholder="Caffè Centrale, Jesi" />
+    <label for="suggestedTime">Orario proposto</label>
+    <input id="suggestedTime" placeholder="oggi alle 18:30" />
+    <label for="icebreaker">Rompighiaccio</label>
+    <input id="icebreaker" placeholder="Chi ha vinto l'ultima partita a scacchi?" />
+    <button class="btn-primary" onclick="createTicket()">Genera biglietto</button>
+    <div id="ticketStatus" class="status" hidden></div>
+  </section>
+</main>
+
+<script>
+  let userId = null;
+  let lastAcceptedCandidateId = null;
+
+  function backend() {
+    return document.getElementById('backendUrl').value.replace(/\/$/, '');
+  }
+
+  function showStatus(elId, data) {
+    const el = document.getElementById(elId);
+    el.hidden = false;
+    el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  }
+
+  async function api(method, path, body) {
+    const res = await fetch(`${backend()}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error(data && data.error ? data.error : `Errore ${res.status}`);
+    return data;
+  }
+
+  async function createUser() {
+    try {
+      const interests = document
+        .getElementById('interests').value
+        .split(',')
+        .map((i) => i.trim())
+        .filter(Boolean);
+      const user = await api('POST', '/api/users', {
+        name: document.getElementById('name').value,
+        birthYear: Number(document.getElementById('birthYear').value) || undefined,
+        interests,
+      });
+      userId = user.id;
+      showStatus('userStatus', user);
+    } catch (err) {
+      showStatus('userStatus', `Errore: ${err.message}`);
+    }
+  }
+
+  function withPosition(callback) {
+    if (!navigator.geolocation) {
+      callback({ lat: 43.5219, lng: 13.2381 }); // fallback: centro di Jesi
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => callback({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => callback({ lat: 43.5219, lng: 13.2381 })
+    );
+  }
+
+  async function goAvailable() {
+    if (!userId) return showStatus('availabilityStatus', 'Crea prima un profilo.');
+    withPosition(async ({ lat, lng }) => {
+      try {
+        const interests = document
+          .getElementById('interests').value
+          .split(',')
+          .map((i) => i.trim())
+          .filter(Boolean);
+        const availability = await api('POST', `/api/availability/${userId}`, {
+          lat,
+          lng,
+          radiusM: 300,
+          interests,
+        });
+        showStatus('availabilityStatus', availability);
+      } catch (err) {
+        showStatus('availabilityStatus', `Errore: ${err.message}`);
+      }
+    });
+  }
+
+  async function goOffline() {
+    if (!userId) return;
+    await api('DELETE', `/api/availability/${userId}`);
+    showStatus('availabilityStatus', 'Disponibilità disattivata.');
+  }
+
+  async function loadMatches() {
+    if (!userId) return showStatus('availabilityStatus', 'Crea prima un profilo ed attiva la disponibilità.');
+    try {
+      const { candidates } = await api('GET', `/api/matches/${userId}`);
+      const container = document.getElementById('candidates');
+      container.innerHTML = '';
+      if (candidates.length === 0) {
+        container.textContent = 'Nessuno nelle vicinanze in questo momento.';
+      }
+      for (const c of candidates) {
+        const div = document.createElement('div');
+        div.className = 'candidate';
+        div.innerHTML = `
+          <div>Interessi in comune: ${c.sharedInterests.join(', ')}</div>
+          <small>a circa ${c.distanceMeters} m</small>
+        `;
+        const btn = document.createElement('button');
+        btn.className = 'btn-primary';
+        btn.textContent = 'Proponi un incontro';
+        btn.onclick = () => proposeTo(c.userId);
+        div.appendChild(btn);
+        container.appendChild(div);
+      }
+    } catch (err) {
+      showStatus('availabilityStatus', `Errore: ${err.message}`);
+    }
+  }
+
+  async function proposeTo(candidateId) {
+    try {
+      lastAcceptedCandidateId = candidateId;
+      const proposal = await api('POST', '/api/proposals', { userId, candidateId });
+      document.getElementById('proposalId').value = proposal.proposalId;
+      showStatus('proposalStatus', proposal);
+    } catch (err) {
+      showStatus('proposalStatus', `Errore: ${err.message}`);
+    }
+  }
+
+  async function respond(response) {
+    const proposalId = document.getElementById('proposalId').value;
+    if (!proposalId) return;
+    try {
+      const status = await api('POST', `/api/proposals/${proposalId}/respond`, { userId, response });
+      renderProposalStatus(status);
+    } catch (err) {
+      showStatus('proposalStatus', `Errore: ${err.message}`);
+    }
+  }
+
+  async function checkStatus() {
+    const proposalId = document.getElementById('proposalId').value;
+    if (!proposalId) return;
+    try {
+      const status = await api('GET', `/api/proposals/${proposalId}?userId=${userId}`);
+      renderProposalStatus(status);
+    } catch (err) {
+      showStatus('proposalStatus', `Errore: ${err.message}`);
+    }
+  }
+
+  function renderProposalStatus(status) {
+    const el = document.getElementById('proposalStatus');
+    el.hidden = false;
+    if (status.status === 'matched') {
+      el.innerHTML = `
+        <div class="match-card">
+          <strong>È un doppio sì! 🎉</strong><br />
+          ${status.match.name}<br />
+          ${status.match.photoUrl ? `<img src="${status.match.photoUrl}" width="64" style="border-radius:50%;margin-top:6px" />` : ''}
+        </div>
+      `;
+    } else {
+      el.textContent = JSON.stringify(status, null, 2);
+    }
+  }
+
+  async function createTicket() {
+    const proposalId = document.getElementById('proposalId').value;
+    if (!proposalId || !userId) return;
+    try {
+      const ticket = await api('POST', '/api/tickets', {
+        proposalId,
+        userId,
+        place: document.getElementById('place').value,
+        suggestedTime: document.getElementById('suggestedTime').value,
+        icebreaker: document.getElementById('icebreaker').value,
+      });
+      showStatus('ticketStatus', ticket);
+    } catch (err) {
+      showStatus('ticketStatus', `Errore: ${err.message}`);
+    }
+  }
+</script>
+</body>
+</html>
