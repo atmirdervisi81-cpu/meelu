@@ -233,13 +233,17 @@
   <!-- ---------- APP PRINCIPALE ---------- -->
   <div id="screen-app" hidden>
     <div class="topbar">
-      <span>Ciao, <strong id="meName">-</strong> <span class="badge">verificato · test amici</span></span>
+      <span style="display:flex; align-items:center; gap:8px;">
+        <img id="meAvatar" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;display:none" />
+        <span>Ciao, <strong id="meName">-</strong> <span class="badge">verificato · test amici</span></span>
+      </span>
       <span style="display:flex; gap:8px;">
         <button class="btn-secondary" onclick="showEditProfile()">Modifica profilo</button>
         <button class="btn-secondary" onclick="signOut()">Esci</button>
       </span>
     </div>
     <div id="myInterestsChips" class="chips readonly" style="margin-bottom:16px"></div>
+    <div id="pendingProposalBanner" class="state-card on" hidden style="cursor:pointer; margin-bottom:16px" onclick="scrollToProposal()"></div>
 
     <section>
       <h2>Notifiche</h2>
@@ -262,6 +266,7 @@
         <button class="btn-secondary" onclick="goOffline()">Non sono più disponibile</button>
       </div>
       <div id="availabilityStatus" class="status" hidden></div>
+      <div id="nearbyStat" class="status" hidden></div>
       <div id="map"></div>
     </section>
 
@@ -521,10 +526,141 @@
 
   async function signOut() {
     if (proposalPollTimer) clearInterval(proposalPollTimer);
+    stopAvailabilityCountdown();
+    stopNearbyCountPolling();
     await db.auth.signOut();
     document.getElementById('screen-app').hidden = true;
     document.getElementById('screen-profile').hidden = true;
     document.getElementById('screen-auth').hidden = false;
+  }
+
+  function renderMyAvatar(photoUrl) {
+    const img = document.getElementById('meAvatar');
+    if (photoUrl) {
+      img.src = photoUrl;
+      img.style.display = 'block';
+    } else {
+      img.style.display = 'none';
+    }
+  }
+
+  function scrollToProposal() {
+    document.getElementById('proposalSection').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  async function checkPendingProposal() {
+    try {
+      const { data: { user } } = await db.auth.getUser();
+      const { data: proposal } = await db.from('proposals')
+        .select('*')
+        .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
+        .in('status', ['open', 'matched'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const banner = document.getElementById('pendingProposalBanner');
+      if (!proposal) {
+        banner.hidden = true;
+        return;
+      }
+
+      currentProposalId = proposal.id;
+      document.getElementById('proposalSection').hidden = false;
+      await refreshProposalStatus();
+      if (proposal.status === 'open') startProposalPolling();
+
+      banner.hidden = false;
+      banner.innerHTML = '';
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      const text = document.createElement('span');
+      text.textContent = 'Hai una proposta in corso — tocca per vederla.';
+      banner.appendChild(dot);
+      banner.appendChild(text);
+    } catch (err) {
+      // promemoria facoltativo: non deve mai bloccare il resto della pagina
+    }
+  }
+
+  // ---- conto alla rovescia live della disponibilità ----
+  let availabilityCountdownTimer = null;
+  let availabilityExpiresAt = null;
+
+  function startAvailabilityCountdown(expiresAtIso, radiusM) {
+    availabilityExpiresAt = new Date(expiresAtIso).getTime();
+    if (availabilityCountdownTimer) clearInterval(availabilityCountdownTimer);
+    const tick = () => {
+      const remainingMs = availabilityExpiresAt - Date.now();
+      if (remainingMs <= 0) {
+        stopAvailabilityCountdown();
+        renderStateCard('availabilityStatus', 'off', 'La tua disponibilità è scaduta. Riattivala per tornare visibile.');
+        return;
+      }
+      const mins = Math.floor(remainingMs / 60000);
+      const secs = Math.floor((remainingMs % 60000) / 1000);
+      renderStateCard(
+        'availabilityStatus',
+        'on',
+        `Sei visibile a chi è vicino e condivide i tuoi interessi (raggio ${radiusM} m) — ancora ${mins}:${String(secs).padStart(2, '0')}.`
+      );
+    };
+    tick();
+    availabilityCountdownTimer = setInterval(tick, 1000);
+  }
+
+  function stopAvailabilityCountdown() {
+    if (availabilityCountdownTimer) clearInterval(availabilityCountdownTimer);
+    availabilityCountdownTimer = null;
+  }
+
+  // ---- persone vicine con interessi in comune, senza dover premere "Cerca" ----
+  let nearbyCountTimer = null;
+
+  async function refreshNearbyCount() {
+    try {
+      const { data: { user } } = await db.auth.getUser();
+      const { data: mine } = await db.from('availability').select('*').eq('user_id', user.id).maybeSingle();
+      if (!mine) {
+        document.getElementById('nearbyStat').hidden = true;
+        return;
+      }
+      const cells = neighborCells(mine.lat, mine.lng, mine.radius_m);
+      const { data: rows } = await db.from('availability')
+        .select('*')
+        .in('cell', cells)
+        .neq('user_id', user.id)
+        .gt('expires_at', new Date().toISOString());
+
+      const count = (rows || []).filter((other) => {
+        const distance = haversineMeters(mine.lat, mine.lng, other.lat, other.lng);
+        return distance <= mine.radius_m && sharedInterests(mine.interests, other.interests).length > 0;
+      }).length;
+
+      renderStateCard(
+        'nearbyStat',
+        count > 0 ? 'on' : 'off',
+        count === 1
+          ? '1 persona con interessi in comune disponibile ora nella tua zona.'
+          : count > 1
+          ? `${count} persone con interessi in comune disponibili ora nella tua zona.`
+          : 'Nessuno con interessi in comune disponibile nella tua zona in questo momento.'
+      );
+    } catch (err) {
+      // e' solo un'anteprima: un errore qui non deve bloccare nient'altro
+    }
+  }
+
+  function startNearbyCountPolling() {
+    refreshNearbyCount();
+    if (nearbyCountTimer) clearInterval(nearbyCountTimer);
+    nearbyCountTimer = setInterval(refreshNearbyCount, 30000);
+  }
+
+  function stopNearbyCountPolling() {
+    if (nearbyCountTimer) clearInterval(nearbyCountTimer);
+    nearbyCountTimer = null;
+    document.getElementById('nearbyStat').hidden = true;
   }
 
   async function onAuthenticated() {
@@ -539,6 +675,21 @@
       showAppScreen();
       document.getElementById('meName').textContent = profile.name;
       renderMyInterests(profile.interests);
+      renderMyAvatar(profile.photo_url);
+      checkPendingProposal();
+
+      const { data: activeAvailability } = await db.from('availability')
+        .select('*')
+        .eq('user_id', user.id)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+      if (activeAvailability) {
+        document.getElementById('radiusM').value = activeAvailability.radius_m;
+        updateRadiusLabel();
+        updateMeOnMap(activeAvailability.lat, activeAvailability.lng, activeAvailability.radius_m);
+        startAvailabilityCountdown(activeAvailability.expires_at, activeAvailability.radius_m);
+        startNearbyCountPolling();
+      }
     } else {
       editingProfile = false;
       document.getElementById('inviteCodeGroup').hidden = false;
@@ -602,6 +753,7 @@
       showAppScreen();
       document.getElementById('meName').textContent = name;
       renderMyInterests(interests);
+      if (photoFile) renderMyAvatar(patch.photo_url);
     } catch (err) {
       showStatus('profileStatus', `Errore: ${err.message}`, true);
     }
@@ -637,6 +789,7 @@
       showAppScreen();
       document.getElementById('meName').textContent = name;
       renderMyInterests(interests);
+      renderMyAvatar(photoUrl);
     } catch (err) {
       showStatus('profileStatus', `Errore: ${err.message}`, true);
     }
@@ -660,11 +813,8 @@
         });
         if (error) throw error;
         updateMeOnMap(lat, lng, radiusM);
-        renderStateCard(
-          'availabilityStatus',
-          'on',
-          `Sei visibile a chi è vicino e condivide i tuoi interessi (raggio ${radiusM} m), fino alle ${new Date(expiresAt).toLocaleTimeString('it-IT')}.`
-        );
+        startAvailabilityCountdown(expiresAt, radiusM);
+        startNearbyCountPolling();
       } catch (err) {
         renderStateCard('availabilityStatus', 'err', `Errore: ${err.message}`);
       }
@@ -745,6 +895,8 @@
   async function goOffline() {
     const { data: { user } } = await db.auth.getUser();
     await db.from('availability').delete().eq('user_id', user.id);
+    stopAvailabilityCountdown();
+    stopNearbyCountPolling();
     renderStateCard('availabilityStatus', 'off', 'Disponibilità disattivata: non sei visibile a nessuno.');
   }
 
