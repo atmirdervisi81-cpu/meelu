@@ -216,6 +216,8 @@
 
     <section>
       <h2>1. Disponibilità</h2>
+      <label for="radiusM">Raggio di ricerca (metri)</label>
+      <input id="radiusM" type="number" min="100" max="3000" step="50" value="300" />
       <div class="btn-row">
         <button class="btn-verde" onclick="goAvailable()">Sono libero/a ora</button>
         <button class="btn-secondary" onclick="goOffline()">Non sono più disponibile</button>
@@ -269,10 +271,12 @@
   // ---- matching (stessa logica del backend, eseguita qui nel browser) ----
   function toCellIndex(v) { return Math.floor(v / CELL_SIZE_DEG); }
   function cellKey(lat, lng) { return `${toCellIndex(lat)}:${toCellIndex(lng)}`; }
-  function neighborCells(lat, lng) {
+  function neighborCells(lat, lng, radiusM = 150) {
+    // le celle sono di ~150m di lato: per raggi più ampi bisogna guardare più celle intorno.
+    const span = Math.max(1, Math.ceil(radiusM / 150));
     const latIdx = toCellIndex(lat), lngIdx = toCellIndex(lng);
     const cells = [];
-    for (let dLat = -1; dLat <= 1; dLat++) for (let dLng = -1; dLng <= 1; dLng++) cells.push(`${latIdx + dLat}:${lngIdx + dLng}`);
+    for (let dLat = -span; dLat <= span; dLat++) for (let dLng = -span; dLng <= span; dLng++) cells.push(`${latIdx + dLat}:${lngIdx + dLng}`);
     return cells;
   }
   function haversineMeters(lat1, lng1, lat2, lng2) {
@@ -571,21 +575,22 @@
   async function goAvailable() {
     withPosition(async ({ lat, lng }) => {
       try {
+        const radiusM = Number(document.getElementById('radiusM').value) || 300;
         const { data: { user } } = await db.auth.getUser();
         const { data: profile } = await db.from('users').select('interests').eq('id', user.id).single();
         const expiresAt = new Date(Date.now() + 45 * 60000).toISOString();
         const { error } = await db.from('availability').upsert({
           user_id: user.id,
           lat, lng,
-          radius_m: 300,
+          radius_m: radiusM,
           interests: profile.interests,
           cell: cellKey(lat, lng),
           activated_at: new Date().toISOString(),
           expires_at: expiresAt,
         });
         if (error) throw error;
-        updateMeOnMap(lat, lng, 300);
-        showStatus('availabilityStatus', `Disponibile fino alle ${new Date(expiresAt).toLocaleTimeString('it-IT')}.`);
+        updateMeOnMap(lat, lng, radiusM);
+        showStatus('availabilityStatus', `Disponibile (raggio ${radiusM} m) fino alle ${new Date(expiresAt).toLocaleTimeString('it-IT')}.`);
       } catch (err) {
         showStatus('availabilityStatus', `Errore: ${err.message}`, true);
       }
@@ -604,7 +609,7 @@
       const { data: mine } = await db.from('availability').select('*').eq('user_id', user.id).maybeSingle();
       if (!mine) return showStatus('availabilityStatus', 'Attiva prima "Sono libero/a ora".', true);
 
-      const cells = neighborCells(mine.lat, mine.lng);
+      const cells = neighborCells(mine.lat, mine.lng, mine.radius_m);
       const { data: rows, error } = await db.from('availability')
         .select('*')
         .in('cell', cells)
@@ -625,7 +630,23 @@
 
       const container = document.getElementById('candidates');
       container.innerHTML = '';
-      if (candidates.length === 0) container.textContent = 'Nessuno nelle vicinanze in questo momento.';
+
+      if (candidates.length === 0) {
+        const msg = document.createElement('div');
+        msg.textContent = `Nessuno con interessi in comune entro ${mine.radius_m} m in questo momento.`;
+        container.appendChild(msg);
+
+        const widerRadius = mine.radius_m + 500;
+        const widen = document.createElement('button');
+        widen.className = 'btn-secondary';
+        widen.textContent = `Allarga il raggio a ${widerRadius} m e riprova`;
+        widen.onclick = async () => {
+          document.getElementById('radiusM').value = widerRadius;
+          await goAvailable();
+          await loadMatches();
+        };
+        container.appendChild(widen);
+      }
 
       for (const c of candidates) {
         const div = document.createElement('div');
