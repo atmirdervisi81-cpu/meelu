@@ -165,7 +165,7 @@
   <section id="screen-profile" hidden>
     <h2>Crea il tuo profilo</h2>
     <label for="inviteCode">Codice invito</label>
-    <input id="inviteCode" placeholder="es. MEELU-1234" />
+    <input id="inviteCode" placeholder="MEELU-AMICI" />
     <label for="name">Nome</label>
     <input id="name" placeholder="es. Alice" />
     <label for="birthYear">Anno di nascita</label>
@@ -310,6 +310,8 @@
     const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
     try {
+      if (!email) throw new Error('Scrivi la tua email nel campo sopra (non lasciare il suggerimento grigio).');
+      if (password.length < 6) throw new Error('La password deve avere almeno 6 caratteri.');
       const { data, error } = await db.auth.signUp({ email, password });
       if (error) throw error;
       if (data.session) {
@@ -327,6 +329,7 @@
     const email = document.getElementById('signinEmail').value.trim();
     const password = document.getElementById('signinPassword').value;
     try {
+      if (!email) throw new Error('Scrivi la tua email nel campo sopra (non lasciare il suggerimento grigio).');
       const { error } = await db.auth.signInWithPassword({ email, password });
       if (error) throw error;
       await onAuthenticated();

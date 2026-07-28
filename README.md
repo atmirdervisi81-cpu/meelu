@@ -32,26 +32,25 @@ Città pilota: Jesi (AN, Marche).
 
 ## Come far provare l'app agli amici
 
-**Link live**: https://wkqmfdkjrfkwwlnlwusk.supabase.co/functions/v1/app
-(pagina `frontend/app.html`, pubblicata come funzione Supabase — nessun
-hosting da configurare; per ripubblicarla dopo una modifica vedi
-"Aggiornare il link live" più sotto).
+**Link live**: https://raw.githack.com/atmirdervisi81-cpu/meelu/main/frontend/app.html
+(serve `frontend/app.html` direttamente dal repository pubblico — le
+Supabase Edge Functions non vanno bene per questo perché disattivano il
+JavaScript sulle pagine aperte direttamente nel browser; per aggiornare il
+link dopo una modifica basta fare push su `main`, githack lo rilegge da solo
+in pochi secondi).
 
 1. Apri il link sopra in un browser (funziona anche da telefono).
-2. Dai a ciascun amico **un codice invito diverso** tra questi (già creati
-   nel database, uno a testa, si consumano al primo uso):
+2. Dai a tutti i tuoi amici lo stesso codice invito, si può usare più volte:
 
    ```
-   MEELU-8095  MEELU-2882  MEELU-4125  MEELU-8736  MEELU-8772
-   MEELU-2804  MEELU-6264  MEELU-5477  MEELU-7118  MEELU-3900
-   MEELU-1990  MEELU-7322  MEELU-4339  MEELU-4834  MEELU-3290
+   MEELU-AMICI
    ```
 
-3. Ogni persona: si registra con email e password → **se Supabase richiede
-   la conferma email** (impostazione di default), deve cliccare il link
-   ricevuto via email e poi tornare sulla pagina e fare "Accedi" → inserisce
-   il codice invito e crea il profilo (nome, anno di nascita, interessi,
-   foto) → tocca "Sono libero/a ora" (richiede il permesso di
+3. Ogni persona: si registra con **la propria email vera** (non lasciare il
+   testo di esempio nel campo) e una password → se Supabase richiede la
+   conferma email, deve cliccare il link ricevuto e poi tornare sulla pagina
+   e fare "Accedi" → inserisce il codice invito e crea il profilo (nome, anno
+   di nascita, interessi, foto) → tocca "Sono libero/a ora" (richiede il permesso di
    geolocalizzazione del browser) → "Cerca persone vicine" → può proporre
    un incontro a chi condivide un interesse ed è nel raggio scelto.
 4. Quando **entrambe** le persone coinvolte in una proposta rispondono "Sì,
@@ -59,18 +58,12 @@ hosting da configurare; per ripubblicarla dopo una modifica vedi
    d'incontro. Chi rifiuta (o non risponde) non viene mai segnalato
    all'altra parte.
 
-Limite noto di questa fase di test: senza generare i codici invito manualmente
-uno a uno, chiunque ottenga un link Supabase valido conosce solo la chiave
-pubblica (mai quella segreta) — l'accesso a dati reali resta comunque
-condizionato al login e ai controlli lato database sopra descritti.
-
-### Aggiornare il link live dopo una modifica
-
-`frontend/app.html` è pubblicato com'è, tal quale, come corpo di risposta di
-una funzione Supabase Edge chiamata `app` (progetto `wkqmfdkjrfkwwlnlwusk`).
-Non si aggiorna da sola quando modifichi il file nel repository: dopo ogni
-modifica va ripubblicata (in una sessione Claude Code, basta chiedere di
-ridistribuire `frontend/app.html` sulla funzione edge `app`).
+Limite noto di questa fase di test: il codice invito è unico e condiviso da
+tutti — chiunque lo conosca può registrarsi. Per un test tra amici va bene;
+prima di un lancio più ampio andrà sostituito con codici singoli o con un
+vero controllo degli inviti. In ogni caso, chi si registra vede solo dati
+protetti dalle regole del database descritte sopra (mai la chiave segreta,
+mai i dati altrui prima di un doppio sì).
 
 ## Struttura
 
