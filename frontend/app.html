@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --base: #f6f5f2;
@@ -128,6 +130,25 @@
     margin-left: 6px;
   }
   [hidden] { display: none !important; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #ece9e4;
+    color: var(--testo);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .chip.selected { background: var(--corallo); color: #fff; }
+  #map {
+    height: 220px;
+    border-radius: 12px;
+    margin-top: 10px;
+    background: #ece9e4;
+  }
+  .leaflet-popup-content { font-family: Inter, sans-serif; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -170,8 +191,8 @@
     <input id="name" placeholder="es. Alice" />
     <label for="birthYear">Anno di nascita</label>
     <input id="birthYear" type="number" placeholder="1994" />
-    <label for="interests">Interessi (separati da virgola)</label>
-    <input id="interests" placeholder="scacchi, trekking, fotografia" />
+    <label>Interessi (scegli quelli che ti rappresentano)</label>
+    <div id="interestChips" class="chips"></div>
     <label for="photo">Foto (visibile solo dopo un doppio sì)</label>
     <input id="photo" type="file" accept="image/*" />
     <button class="btn-primary" onclick="createProfile()">Crea profilo</button>
@@ -192,6 +213,7 @@
         <button class="btn-secondary" onclick="goOffline()">Non sono più disponibile</button>
       </div>
       <div id="availabilityStatus" class="status" hidden></div>
+      <div id="map"></div>
     </section>
 
     <section>
@@ -257,8 +279,79 @@
     return shared;
   }
 
-  function parseInterests(value) {
-    return value.split(',').map((i) => i.trim()).filter(Boolean);
+  function cellCenter(key) {
+    const [latIdx, lngIdx] = key.split(':').map(Number);
+    return { lat: (latIdx + 0.5) * CELL_SIZE_DEG, lng: (lngIdx + 0.5) * CELL_SIZE_DEG };
+  }
+
+  // ---- interessi: lista comune a tutti, cosi i match funzionano davvero ----
+  const INTEREST_OPTIONS = [
+    'Scacchi', 'Trekking', 'Fotografia', 'Lettura', 'Corsa', 'Cinema',
+    'Musica dal vivo', 'Giochi da tavolo', 'Cucina', 'Arrampicata', 'Studio',
+    'Aperitivo', 'Cani e gatti', 'Bici', 'Arte', 'Viaggi', 'Yoga',
+    'Videogiochi', 'Teatro', 'Calcetto',
+  ];
+  const selectedInterests = new Set();
+
+  function renderInterestChips() {
+    const container = document.getElementById('interestChips');
+    container.innerHTML = '';
+    for (const interest of INTEREST_OPTIONS) {
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.textContent = interest;
+      chip.onclick = () => {
+        if (selectedInterests.has(interest)) selectedInterests.delete(interest);
+        else selectedInterests.add(interest);
+        chip.classList.toggle('selected');
+      };
+      container.appendChild(chip);
+    }
+  }
+
+  // ---- mappa (posizione approssimata: solo il centro della cella di ~166m, mai la posizione esatta altrui) ----
+  let leafletMap = null;
+  let meMarker = null;
+  let meCircle = null;
+  let candidateMarkers = [];
+
+  function ensureMap(lat, lng) {
+    if (!leafletMap) {
+      leafletMap = L.map('map').setView([lat, lng], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(leafletMap);
+    }
+    return leafletMap;
+  }
+
+  function updateMeOnMap(lat, lng, radiusM) {
+    const map = ensureMap(lat, lng);
+    map.setView([lat, lng], 15);
+    if (meMarker) meMarker.remove();
+    if (meCircle) meCircle.remove();
+    meMarker = L.marker([lat, lng]).addTo(map).bindPopup('Tu');
+    meCircle = L.circle([lat, lng], { radius: radiusM, color: '#1fa97e', fillOpacity: 0.08 }).addTo(map);
+  }
+
+  function updateCandidatesOnMap(candidates) {
+    for (const m of candidateMarkers) m.remove();
+    candidateMarkers = [];
+    if (!leafletMap) return;
+    for (const c of candidates) {
+      const { lat, lng } = cellCenter(c.cell);
+      const marker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:14px;height:14px;border-radius:50%;background:#ff5a3c;border:2px solid #fff"></div>',
+          iconSize: [14, 14],
+        }),
+      })
+        .addTo(leafletMap)
+        .bindPopup(`${c.common.join(', ')} · a circa ${c.distance} m`);
+      candidateMarkers.push(marker);
+    }
   }
 
   function showStatus(elId, data, isError) {
@@ -360,6 +453,7 @@
       document.getElementById('meName').textContent = profile.name;
     } else {
       document.getElementById('screen-profile').hidden = false;
+      renderInterestChips();
     }
   }
 
@@ -367,11 +461,12 @@
     const code = document.getElementById('inviteCode').value.trim();
     const name = document.getElementById('name').value.trim();
     const birthYear = Number(document.getElementById('birthYear').value) || null;
-    const interests = parseInterests(document.getElementById('interests').value);
+    const interests = Array.from(selectedInterests);
     const photoFile = document.getElementById('photo').files[0];
 
     try {
       if (!code) throw new Error('Serve un codice invito valido.');
+      if (interests.length === 0) throw new Error('Scegli almeno un interesse.');
       const { data: redeemed, error: redeemError } = await db.rpc('redeem_invite_code', { p_code: code });
       if (redeemError) throw redeemError;
       if (!redeemed) throw new Error('Codice invito non valido o già usato. Chiedi a chi ti ha invitato un codice nuovo.');
@@ -413,6 +508,7 @@
           expires_at: expiresAt,
         });
         if (error) throw error;
+        updateMeOnMap(lat, lng, 300);
         showStatus('availabilityStatus', `Disponibile fino alle ${new Date(expiresAt).toLocaleTimeString('it-IT')}.`);
       } catch (err) {
         showStatus('availabilityStatus', `Errore: ${err.message}`, true);
@@ -444,10 +540,12 @@
         .map((other) => {
           const distance = Math.round(haversineMeters(mine.lat, mine.lng, other.lat, other.lng));
           const common = sharedInterests(mine.interests, other.interests);
-          return { userId: other.user_id, distance, common };
+          return { userId: other.user_id, distance, common, cell: other.cell };
         })
         .filter((c) => c.distance <= mine.radius_m && c.common.length > 0)
         .sort((a, b) => a.distance - b.distance);
+
+      updateCandidatesOnMap(candidates);
 
       const container = document.getElementById('candidates');
       container.innerHTML = '';
