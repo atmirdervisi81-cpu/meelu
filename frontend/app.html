@@ -165,6 +165,16 @@
   .state-card.on { background: rgba(31, 169, 126, 0.12); color: #14785f; }
   .state-card.off { background: #f1efec; color: #4a4652; }
   .state-card.err { background: rgba(255, 90, 60, 0.12); color: #c23616; }
+  .radius-row { display: flex; align-items: center; gap: 12px; }
+  .radius-row input[type="range"] { flex: 1; accent-color: var(--corallo); }
+  .radius-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    color: var(--indaco);
+    white-space: nowrap;
+    min-width: 100px;
+    text-align: right;
+  }
 </style>
 </head>
 <body>
@@ -233,18 +243,20 @@
 
     <section>
       <h2>Notifiche</h2>
-      <button class="btn-secondary" onclick="enablePushNotifications()">Attiva notifiche</button>
-      <div id="pushStatus" class="status" hidden></div>
-      <div class="sub" style="margin:8px 0 0">
-        Su iPhone funzionano solo se prima aggiungi questa pagina alla schermata Home
-        (Safari → icona di condivisione → "Aggiungi a Home") e la apri da lì.
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="enablePushNotifications()">Attiva notifiche</button>
+        <button class="btn-secondary" onclick="disablePushNotifications()">Disattiva notifiche</button>
       </div>
+      <div id="pushStatus" class="status" hidden></div>
     </section>
 
     <section>
       <h2>1. Disponibilità</h2>
-      <label for="radiusM">Raggio di ricerca (metri)</label>
-      <input id="radiusM" type="number" min="100" max="3000" step="50" value="300" />
+      <label for="radiusM">Raggio di ricerca</label>
+      <div class="radius-row">
+        <input id="radiusM" type="range" min="100" max="3000" step="50" value="300" oninput="updateRadiusLabel()" />
+        <span id="radiusLabel" class="radius-label">300 m</span>
+      </div>
       <div class="btn-row">
         <button class="btn-verde" onclick="goAvailable()">Sono libero/a ora</button>
         <button class="btn-secondary" onclick="goOffline()">Non sono più disponibile</button>
@@ -359,6 +371,7 @@
   function showAppScreen() {
     document.getElementById('screen-profile').hidden = true;
     document.getElementById('screen-app').hidden = false;
+    updateRadiusLabel();
     // la mappa perde le dimensioni corrette quando il suo contenitore viene
     // nascosto (display:none) e poi rimostrato: va ricalcolata esplicitamente.
     if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 50);
@@ -696,6 +709,39 @@
     }
   }
 
+  async function disablePushNotifications() {
+    try {
+      if (!('serviceWorker' in navigator)) {
+        return renderStateCard('pushStatus', 'off', 'Notifiche già disattivate su questo dispositivo.');
+      }
+      const registration = await navigator.serviceWorker.getRegistration('sw.js');
+      const subscription = registration && (await registration.pushManager.getSubscription());
+
+      if (subscription) {
+        const endpoint = subscription.endpoint;
+        await subscription.unsubscribe();
+        const { data: { user } } = await db.auth.getUser();
+        await db.from('push_subscriptions').delete().eq('user_id', user.id).eq('endpoint', endpoint);
+      }
+
+      renderStateCard('pushStatus', 'off', 'Notifiche disattivate su questo dispositivo.');
+    } catch (err) {
+      renderStateCard('pushStatus', 'err', `Errore: ${err.message}`);
+    }
+  }
+
+  function radiusDescription(m) {
+    if (m <= 300) return 'nel quartiere, a piedi';
+    if (m <= 800) return 'una bella passeggiata';
+    if (m <= 1500) return 'in bici';
+    return 'in città';
+  }
+
+  function updateRadiusLabel() {
+    const m = Number(document.getElementById('radiusM').value);
+    document.getElementById('radiusLabel').textContent = `${m} m — ${radiusDescription(m)}`;
+  }
+
   async function goOffline() {
     const { data: { user } } = await db.auth.getUser();
     await db.from('availability').delete().eq('user_id', user.id);
@@ -741,6 +787,7 @@
         widen.textContent = `Allarga il raggio a ${widerRadius} m e riprova`;
         widen.onclick = async () => {
           document.getElementById('radiusM').value = widerRadius;
+          updateRadiusLabel();
           await goAvailable();
           await loadMatches();
         };
