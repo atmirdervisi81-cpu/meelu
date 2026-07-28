@@ -129,6 +129,27 @@ separate), perché questa sessione non ha un vault/secrets manager collegato
 al progetto Supabase — sono visibili solo a chi ha accesso alla dashboard del
 progetto, mai al browser di chi usa l'app.
 
+## Pannello admin
+
+**Link**: https://raw.githack.com/atmirdervisi81-cpu/meelu/main/frontend/admin.html
+
+Accesso riservato: solo l'account del fondatore (in tabella `public.admins`)
+può vedere qualcosa — il controllo è dentro il database (funzione
+`admin_dashboard`, `SECURITY DEFINER`), non solo nascosto nella pagina.
+Chiunque altro faccia login vede "accesso riservato" e viene disconnesso.
+
+Mostra: statistiche generali (utenti, disponibili ora, proposte, match,
+inviti riscattati), l'elenco di chi si è registrato (nome, email, età,
+interessi, verificato, disponibile ora, iscritto il) e le proposte recenti
+(tra chi, interessi comuni, stato). **Non mostra mai la posizione di
+nessuno**, nemmeno approssimata — è una scelta deliberata, coerente con il
+principio "mai la posizione esatta" del piano: la posizione resta un dato
+che nessuno vede se non implicito nel meccanismo di match, nemmeno chi
+amministra la piattaforma.
+
+Per aggiungere un altro amministratore in futuro:
+`insert into public.admins (user_id) select id from auth.users where email = '...';`
+
 ## Prossimi passi
 
 1. Raccogliere il feedback del test con amici e sistemare quello che emerge

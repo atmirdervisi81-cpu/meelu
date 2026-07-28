@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meelu — Pannello admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --base: #f6f5f2;
+    --corallo: #ff5a3c;
+    --indaco: #4b3f8c;
+    --verde: #1fa97e;
+    --testo: #221f2b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--base);
+    color: var(--testo);
+    font-family: Inter, system-ui, sans-serif;
+    padding: 24px;
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  h1 {
+    font-family: "Space Grotesk", Inter, sans-serif;
+    font-size: 26px;
+    margin: 0 0 4px;
+  }
+  .sub { color: #6b6673; margin-bottom: 24px; font-size: 14px; }
+  section {
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+  section h2 {
+    font-family: "Space Grotesk", Inter, sans-serif;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--indaco);
+    margin: 0 0 16px;
+  }
+  label { display: block; font-size: 13px; margin: 10px 0 4px; color: #4a4652; }
+  input {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid #d8d5d0;
+    font-family: inherit;
+    font-size: 14px;
+  }
+  button {
+    margin-top: 12px;
+    padding: 9px 16px;
+    border: none;
+    border-radius: 999px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 13.5px;
+    cursor: pointer;
+    background: var(--corallo);
+    color: #fff;
+  }
+  button.secondary { background: #ece9e4; color: var(--testo); }
+  #loginBox { max-width: 360px; margin: 60px auto; }
+  .error-text { color: #c23616; font-size: 13.5px; margin-top: 10px; }
+  [hidden] { display: none !important; }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .stat-card {
+    background: var(--base);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .stat-card .value {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--indaco);
+  }
+  .stat-card .label { font-size: 12.5px; color: #6b6673; margin-top: 2px; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b6673;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eae7e2;
+    white-space: nowrap;
+  }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1efec; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .avatar-cell {
+    width: 30px; height: 30px; border-radius: 50%; object-fit: cover;
+    background: #ece9e4; display: block;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .badge.on { background: rgba(31, 169, 126, 0.15); color: #14785f; }
+  .badge.off { background: #ece9e4; color: #6b6673; }
+  .badge.matched { background: rgba(31, 169, 126, 0.15); color: #14785f; }
+  .badge.open { background: rgba(75, 63, 140, 0.12); color: var(--indaco); }
+  .badge.closed { background: #ece9e4; color: #6b6673; }
+  .mono { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: #4a4652; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap; }
+  .toolbar input { max-width: 260px; margin: 0; }
+  .empty-row { color: #6b6673; padding: 16px 0; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <div id="loginBox">
+    <h1>Meelu — Pannello admin</h1>
+    <div class="sub">Accesso riservato.</div>
+    <label for="email">Email</label>
+    <input id="email" type="email" placeholder="tu@esempio.it" />
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="••••••••" />
+    <button onclick="login()">Accedi</button>
+    <div id="loginError" class="error-text" hidden></div>
+  </div>
+
+  <div id="dashboard" hidden>
+    <h1>Pannello admin</h1>
+    <div class="sub">Solo tu puoi vedere questa pagina — l'accesso è verificato dal database, non solo nascosto.</div>
+
+    <section>
+      <h2>Panoramica</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="value" id="statUsers">–</div><div class="label">Utenti registrati</div></div>
+        <div class="stat-card"><div class="value" id="statAvailable">–</div><div class="label">Disponibili ora</div></div>
+        <div class="stat-card"><div class="value" id="statProposals">–</div><div class="label">Proposte totali</div></div>
+        <div class="stat-card"><div class="value" id="statMatches">–</div><div class="label">Doppi sì (match)</div></div>
+        <div class="stat-card"><div class="value" id="statInvites">–</div><div class="label">Inviti riscattati</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="toolbar">
+        <h2 style="margin:0">Utenti registrati</h2>
+        <input id="userFilter" type="text" placeholder="Filtra per nome o interesse..." oninput="renderUsers()" />
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Nome</th>
+              <th>Email</th>
+              <th>Età</th>
+              <th>Interessi</th>
+              <th>Verificato</th>
+              <th>Disponibile ora</th>
+              <th>Iscritto il</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Proposte recenti</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tra</th>
+              <th>Interessi comuni</th>
+              <th>Stato</th>
+              <th>Creata il</th>
+            </tr>
+          </thead>
+          <tbody id="proposalsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <button class="secondary" onclick="logout()">Esci</button>
+  </div>
+</main>
+
+<script>
+  const SUPABASE_URL = 'https://wkqmfdkjrfkwwlnlwusk.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_g4SvvcbUBPeEhH86mPCl2A_wrWh7jo8';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let dashboardData = null;
+  let refreshTimer = null;
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function ageFromBirthYear(birthYear) {
+    if (!birthYear) return '—';
+    return new Date().getFullYear() - birthYear;
+  }
+
+  async function login() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const errEl = document.getElementById('loginError');
+    errEl.hidden = true;
+    try {
+      const { error } = await db.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      await loadDashboard();
+    } catch (err) {
+      errEl.hidden = false;
+      errEl.textContent = `Errore: ${err.message}`;
+    }
+  }
+
+  async function logout() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    await db.auth.signOut();
+    document.getElementById('dashboard').hidden = true;
+    document.getElementById('loginBox').hidden = false;
+  }
+
+  async function loadDashboard() {
+    const errEl = document.getElementById('loginError');
+    try {
+      const { data, error } = await db.rpc('admin_dashboard');
+      if (error) throw error;
+
+      dashboardData = data;
+      document.getElementById('loginBox').hidden = true;
+      document.getElementById('dashboard').hidden = false;
+
+      renderStats(data.stats);
+      renderUsers();
+      renderProposals(data.proposals);
+
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(async () => {
+        const { data: fresh, error: refreshError } = await db.rpc('admin_dashboard');
+        if (!refreshError) {
+          dashboardData = fresh;
+          renderStats(fresh.stats);
+          renderUsers();
+          renderProposals(fresh.proposals);
+        }
+      }, 30000);
+    } catch (err) {
+      await db.auth.signOut();
+      document.getElementById('dashboard').hidden = true;
+      document.getElementById('loginBox').hidden = false;
+      errEl.hidden = false;
+      errEl.textContent = 'Accesso riservato: questo account non è amministratore.';
+    }
+  }
+
+  function renderStats(stats) {
+    document.getElementById('statUsers').textContent = stats.total_users;
+    document.getElementById('statAvailable').textContent = stats.available_now;
+    document.getElementById('statProposals').textContent = stats.total_proposals;
+    document.getElementById('statMatches').textContent = stats.total_matches;
+    document.getElementById('statInvites').textContent = stats.invite_redemptions;
+  }
+
+  function renderUsers() {
+    if (!dashboardData) return;
+    const filter = document.getElementById('userFilter').value.trim().toLowerCase();
+    const tbody = document.getElementById('usersBody');
+    tbody.innerHTML = '';
+
+    const rows = dashboardData.users.filter((u) => {
+      if (!filter) return true;
+      const haystack = `${u.name} ${(u.interests || []).join(' ')}`.toLowerCase();
+      return haystack.includes(filter);
+    });
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-row">Nessun utente trovato.</td></tr>';
+      return;
+    }
+
+    for (const u of rows) {
+      const tr = document.createElement('tr');
+
+      const tdPhoto = document.createElement('td');
+      const img = document.createElement('img');
+      img.className = 'avatar-cell';
+      img.alt = '';
+      if (u.photo_url) img.src = u.photo_url;
+      tdPhoto.appendChild(img);
+
+      const tdName = document.createElement('td');
+      tdName.textContent = u.name || '—';
+
+      const tdEmail = document.createElement('td');
+      tdEmail.className = 'mono';
+      tdEmail.textContent = u.email || '—';
+
+      const tdAge = document.createElement('td');
+      tdAge.textContent = ageFromBirthYear(u.birth_year);
+
+      const tdInterests = document.createElement('td');
+      tdInterests.textContent = (u.interests || []).join(', ') || '—';
+
+      const tdVerified = document.createElement('td');
+      const verifiedBadge = document.createElement('span');
+      verifiedBadge.className = `badge ${u.verified ? 'on' : 'off'}`;
+      verifiedBadge.textContent = u.verified ? 'Sì' : 'No';
+      tdVerified.appendChild(verifiedBadge);
+
+      const tdAvailable = document.createElement('td');
+      const availableBadge = document.createElement('span');
+      availableBadge.className = `badge ${u.is_available ? 'on' : 'off'}`;
+      availableBadge.textContent = u.is_available ? 'Sì' : 'No';
+      tdAvailable.appendChild(availableBadge);
+
+      const tdCreated = document.createElement('td');
+      tdCreated.className = 'mono';
+      tdCreated.textContent = fmtDate(u.created_at);
+
+      tr.append(tdPhoto, tdName, tdEmail, tdAge, tdInterests, tdVerified, tdAvailable, tdCreated);
+      tbody.appendChild(tr);
+    }
+  }
+
+  function renderProposals(proposals) {
+    const tbody = document.getElementById('proposalsBody');
+    tbody.innerHTML = '';
+
+    if (!proposals || proposals.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-row">Ancora nessuna proposta.</td></tr>';
+      return;
+    }
+
+    for (const p of proposals) {
+      const tr = document.createElement('tr');
+
+      const tdWho = document.createElement('td');
+      tdWho.textContent = `${p.user_a_name} ↔ ${p.user_b_name}`;
+
+      const tdInterests = document.createElement('td');
+      tdInterests.textContent = (p.shared_interests || []).join(', ') || '—';
+
+      const tdStatus = document.createElement('td');
+      const statusBadge = document.createElement('span');
+      const statusLabel = { open: 'In corso', matched: 'Match', closed: 'Chiusa' }[p.status] || p.status;
+      statusBadge.className = `badge ${p.status}`;
+      statusBadge.textContent = statusLabel;
+      tdStatus.appendChild(statusBadge);
+
+      const tdCreated = document.createElement('td');
+      tdCreated.className = 'mono';
+      tdCreated.textContent = fmtDate(p.created_at);
+
+      tr.append(tdWho, tdInterests, tdStatus, tdCreated);
+      tbody.appendChild(tr);
+    }
+  }
+
+  db.auth.getSession().then(({ data: { session } }) => {
+    if (session) loadDashboard();
+  });
+</script>
+</body>
+</html>
