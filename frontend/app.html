@@ -896,6 +896,45 @@
     return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
   }
 
+  function renderBlockedNotificationHelp() {
+    const el = document.getElementById('pushStatus');
+    el.hidden = false;
+    el.className = 'state-card err';
+    el.style.alignItems = 'flex-start';
+    el.innerHTML = '';
+
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.marginTop = '5px';
+
+    const body = document.createElement('div');
+
+    const text = document.createElement('div');
+    text.textContent =
+      'Le notifiche sono bloccate per questa pagina (spesso capita in automatico, non per una scelta tua). ' +
+      'Per sbloccarle: copia l\'indirizzo qui sotto, aprilo in una nuova scheda del browser, cerca questo sito ' +
+      'nell\'elenco e metti "Notifiche" su Consenti.';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn-secondary';
+    copyBtn.style.marginTop = '8px';
+    copyBtn.textContent = "Copia l'indirizzo delle impostazioni";
+    copyBtn.onclick = async () => {
+      const settingsUrl = 'chrome://settings/content/notifications';
+      try {
+        await navigator.clipboard.writeText(settingsUrl);
+        copyBtn.textContent = 'Copiato — incollalo in una nuova scheda';
+      } catch {
+        copyBtn.textContent = settingsUrl;
+      }
+    };
+
+    body.appendChild(text);
+    body.appendChild(copyBtn);
+    el.appendChild(dot);
+    el.appendChild(body);
+  }
+
   async function enablePushNotifications() {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -905,14 +944,12 @@
       }
 
       if (Notification.permission === 'denied') {
-        throw new Error(
-          'Le notifiche risultano già bloccate per questa pagina (a volte succede automaticamente, non per una scelta tua o della persona che le usa). Vanno sbloccate dalle impostazioni del browser prima di riprovare.'
-        );
+        return renderBlockedNotificationHelp();
       }
 
       const registration = await navigator.serviceWorker.register('sw.js');
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('Permesso notifiche negato.');
+      if (permission !== 'granted') return renderBlockedNotificationHelp();
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
