@@ -335,7 +335,18 @@
       <div id="ticketForm" hidden>
         <h2 style="margin-top:18px">4. Biglietto d'incontro</h2>
         <label for="place">Luogo</label>
-        <input id="place" placeholder="Caffè Centrale, Jesi" />
+        <input id="place" list="jesiVenues" placeholder="Scegli un luogo certificato o scrivine un altro" />
+        <datalist id="jesiVenues">
+          <option value="Caffè Imperiale — Arco del Magistrato, 2, Jesi">
+          <option value="Corso Piccolo Caffè — Corso Giacomo Matteotti, 41/A, Jesi">
+          <option value="Caffè del Teatro — Piazza della Repubblica, 10, Jesi">
+          <option value="La Picca — Wine Bar — Piazza Gaspare Spontini, 2B, Jesi">
+          <option value="COWO Coworking Jesi — Piazza Angelo Ghislieri, 3, Jesi">
+          <option value="Biblioteca Comunale Planettiana — Piazza Angelo Colocci, 2, Jesi">
+        </datalist>
+        <div class="sub" style="margin:4px 0 0">
+          Suggerimenti validi solo per Jesi — se il tuo match è altrove, scrivi il luogo che preferisci.
+        </div>
         <label for="suggestedTime">Orario proposto</label>
         <input id="suggestedTime" placeholder="oggi alle 18:30" />
         <label for="icebreaker">Rompighiaccio</label>
