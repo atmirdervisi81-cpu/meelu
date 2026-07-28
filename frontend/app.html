@@ -34,15 +34,6 @@
     margin: 0 0 4px;
   }
   .sub { color: #6b6673; margin-bottom: 20px; font-size: 14px; }
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    font-size: 13px;
-    color: #4a4652;
-  }
-  .topbar button { margin: 0; }
   section {
     background: #fff;
     border-radius: 16px;
@@ -175,6 +166,39 @@
     min-width: 100px;
     text-align: right;
   }
+  .profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .profile-identity { display: flex; gap: 12px; align-items: flex-start; }
+  .avatar-lg {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: 0 0 auto;
+    background: #ece9e4;
+    display: none;
+  }
+  .profile-name {
+    font-family: "Space Grotesk", Inter, sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .profile-actions { display: flex; gap: 16px; flex: 0 0 auto; }
+  .link-action {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--indaco);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .link-action:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -232,17 +256,22 @@
 
   <!-- ---------- APP PRINCIPALE ---------- -->
   <div id="screen-app" hidden>
-    <div class="topbar">
-      <span style="display:flex; align-items:center; gap:8px;">
-        <img id="meAvatar" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;display:none" />
-        <span>Ciao, <strong id="meName">-</strong> <span class="badge">verificato · test amici</span></span>
-      </span>
-      <span style="display:flex; gap:8px;">
-        <button class="btn-secondary" onclick="showEditProfile()">Modifica profilo</button>
-        <button class="btn-secondary" onclick="signOut()">Esci</button>
-      </span>
-    </div>
-    <div id="myInterestsChips" class="chips readonly" style="margin-bottom:16px"></div>
+    <section class="profile-header">
+      <div class="profile-identity">
+        <img id="meAvatar" alt="" class="avatar-lg" />
+        <div>
+          <div class="profile-name">
+            <strong id="meName">-</strong>
+            <span class="badge">verificato · test amici</span>
+          </div>
+          <div id="myInterestsChips" class="chips readonly"></div>
+        </div>
+      </div>
+      <div class="profile-actions">
+        <a href="#" class="link-action" onclick="showEditProfile(); return false;">Modifica profilo</a>
+        <a href="#" class="link-action" onclick="signOut(); return false;">Esci</a>
+      </div>
+    </section>
     <div id="pendingProposalBanner" class="state-card on" hidden style="cursor:pointer; margin-bottom:16px" onclick="scrollToProposal()"></div>
 
     <section>
