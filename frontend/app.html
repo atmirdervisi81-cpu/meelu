@@ -182,11 +182,13 @@
     <div id="authStatus" class="status" hidden></div>
   </section>
 
-  <!-- ---------- CREAZIONE PROFILO (con codice invito) ---------- -->
+  <!-- ---------- CREAZIONE / MODIFICA PROFILO ---------- -->
   <section id="screen-profile" hidden>
-    <h2>Crea il tuo profilo</h2>
-    <label for="inviteCode">Codice invito</label>
-    <input id="inviteCode" placeholder="MEELU-AMICI" />
+    <h2 id="profileTitle">Crea il tuo profilo</h2>
+    <div id="inviteCodeGroup">
+      <label for="inviteCode">Codice invito</label>
+      <input id="inviteCode" placeholder="MEELU-AMICI" />
+    </div>
     <label for="name">Nome</label>
     <input id="name" placeholder="es. Alice" />
     <label for="birthYear">Anno di nascita</label>
@@ -195,7 +197,10 @@
     <div id="interestChips" class="chips"></div>
     <label for="photo">Foto (visibile solo dopo un doppio sì)</label>
     <input id="photo" type="file" accept="image/*" />
-    <button class="btn-primary" onclick="createProfile()">Crea profilo</button>
+    <div class="btn-row">
+      <button id="profileSubmitBtn" class="btn-primary" onclick="createProfile()">Crea profilo</button>
+      <button id="cancelEditBtn" class="btn-secondary" onclick="cancelEditProfile()" hidden>Annulla</button>
+    </div>
     <div id="profileStatus" class="status" hidden></div>
   </section>
 
@@ -203,7 +208,10 @@
   <div id="screen-app" hidden>
     <div class="topbar">
       <span>Ciao, <strong id="meName">-</strong> <span class="badge">verificato · test amici</span></span>
-      <button class="btn-secondary" onclick="signOut()">Esci</button>
+      <span style="display:flex; gap:8px;">
+        <button class="btn-secondary" onclick="showEditProfile()">Modifica profilo</button>
+        <button class="btn-secondary" onclick="signOut()">Esci</button>
+      </span>
     </div>
 
     <section>
@@ -255,6 +263,7 @@
   const CELL_SIZE_DEG = 0.0015;
 
   let currentProposalId = null;
+  let editingProfile = false;
   let proposalPollTimer = null;
 
   // ---- matching (stessa logica del backend, eseguita qui nel browser) ----
@@ -298,7 +307,7 @@
     container.innerHTML = '';
     for (const interest of INTEREST_OPTIONS) {
       const chip = document.createElement('div');
-      chip.className = 'chip';
+      chip.className = 'chip' + (selectedInterests.has(interest) ? ' selected' : '');
       chip.textContent = interest;
       chip.onclick = () => {
         if (selectedInterests.has(interest)) selectedInterests.delete(interest);
@@ -452,8 +461,71 @@
       document.getElementById('screen-app').hidden = false;
       document.getElementById('meName').textContent = profile.name;
     } else {
+      editingProfile = false;
+      document.getElementById('inviteCodeGroup').hidden = false;
+      document.getElementById('profileTitle').textContent = 'Crea il tuo profilo';
+      document.getElementById('profileSubmitBtn').textContent = 'Crea profilo';
+      document.getElementById('profileSubmitBtn').onclick = createProfile;
+      document.getElementById('cancelEditBtn').hidden = true;
       document.getElementById('screen-profile').hidden = false;
       renderInterestChips();
+    }
+  }
+
+  async function showEditProfile() {
+    try {
+      const { data: { user } } = await db.auth.getUser();
+      const { data: profile, error } = await db.from('users').select('*').eq('id', user.id).single();
+      if (error) throw error;
+
+      editingProfile = true;
+      document.getElementById('name').value = profile.name || '';
+      document.getElementById('birthYear').value = profile.birth_year || '';
+      selectedInterests.clear();
+      for (const i of profile.interests || []) selectedInterests.add(i);
+      renderInterestChips();
+
+      document.getElementById('inviteCodeGroup').hidden = true;
+      document.getElementById('profileTitle').textContent = 'Modifica il tuo profilo';
+      document.getElementById('profileSubmitBtn').textContent = 'Salva modifiche';
+      document.getElementById('profileSubmitBtn').onclick = updateProfile;
+      document.getElementById('cancelEditBtn').hidden = false;
+      document.getElementById('profileStatus').hidden = true;
+
+      document.getElementById('screen-app').hidden = true;
+      document.getElementById('screen-profile').hidden = false;
+    } catch (err) {
+      showStatus('availabilityStatus', `Errore: ${err.message}`, true);
+    }
+  }
+
+  function cancelEditProfile() {
+    editingProfile = false;
+    document.getElementById('screen-profile').hidden = true;
+    document.getElementById('screen-app').hidden = false;
+  }
+
+  async function updateProfile() {
+    const name = document.getElementById('name').value.trim();
+    const birthYear = Number(document.getElementById('birthYear').value) || null;
+    const interests = Array.from(selectedInterests);
+    const photoFile = document.getElementById('photo').files[0];
+
+    try {
+      if (interests.length === 0) throw new Error('Scegli almeno un interesse.');
+      const { data: { user } } = await db.auth.getUser();
+      const patch = { name, birth_year: birthYear, interests };
+      if (photoFile) patch.photo_url = await fileToResizedDataUrl(photoFile);
+
+      const { error } = await db.from('users').update(patch).eq('id', user.id);
+      if (error) throw error;
+
+      editingProfile = false;
+      document.getElementById('screen-profile').hidden = true;
+      document.getElementById('screen-app').hidden = false;
+      document.getElementById('meName').textContent = name;
+    } catch (err) {
+      showStatus('profileStatus', `Errore: ${err.message}`, true);
     }
   }
 
