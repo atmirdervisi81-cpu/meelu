@@ -324,6 +324,14 @@
   let meCircle = null;
   let candidateMarkers = [];
 
+  function showAppScreen() {
+    document.getElementById('screen-profile').hidden = true;
+    document.getElementById('screen-app').hidden = false;
+    // la mappa perde le dimensioni corrette quando il suo contenitore viene
+    // nascosto (display:none) e poi rimostrato: va ricalcolata esplicitamente.
+    if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 50);
+  }
+
   function ensureMap(lat, lng) {
     if (!leafletMap) {
       leafletMap = L.map('map').setView([lat, lng], 15);
@@ -457,8 +465,7 @@
     document.getElementById('screen-auth').hidden = true;
 
     if (profile) {
-      document.getElementById('screen-profile').hidden = true;
-      document.getElementById('screen-app').hidden = false;
+      showAppScreen();
       document.getElementById('meName').textContent = profile.name;
     } else {
       editingProfile = false;
@@ -501,8 +508,7 @@
 
   function cancelEditProfile() {
     editingProfile = false;
-    document.getElementById('screen-profile').hidden = true;
-    document.getElementById('screen-app').hidden = false;
+    showAppScreen();
   }
 
   async function updateProfile() {
@@ -521,8 +527,7 @@
       if (error) throw error;
 
       editingProfile = false;
-      document.getElementById('screen-profile').hidden = true;
-      document.getElementById('screen-app').hidden = false;
+      showAppScreen();
       document.getElementById('meName').textContent = name;
     } catch (err) {
       showStatus('profileStatus', `Errore: ${err.message}`, true);
@@ -556,8 +561,7 @@
       });
       if (insertError) throw insertError;
 
-      document.getElementById('screen-profile').hidden = true;
-      document.getElementById('screen-app').hidden = false;
+      showAppScreen();
       document.getElementById('meName').textContent = name;
     } catch (err) {
       showStatus('profileStatus', `Errore: ${err.message}`, true);
