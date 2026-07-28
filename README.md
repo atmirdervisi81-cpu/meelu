@@ -150,6 +150,25 @@ amministra la piattaforma.
 Per aggiungere un altro amministratore in futuro:
 `insert into public.admins (user_id) select id from auth.users where email = '...';`
 
+Dalla tabella utenti puoi anche **regalare o togliere il piano Plus** a
+chiunque con un tocco (colonna "Piano") — utile per i test, prima che
+esistano pagamenti veri.
+
+## Limite giornaliero (freemium)
+
+Ogni account nasce con `plan = 'free'`: può vedere al massimo **1 match al
+giorno**. Un secondo doppio sì nello stesso giorno risulta comunque
+`matched` nel database (l'incontro è reale, nulla va perso), ma la
+rivelazione di nome/foto/biglietto resta bloccata per chi ha il piano
+free finché non passa a `plan = 'plus'` (oggi solo tramite il pannello
+admin) o finché non inizia un nuovo giorno. La verifica è dentro
+`get_proposal_status`, quindi non è aggirabile dal client.
+
+**Non ancora collegato**: un vero sistema di pagamento (es. Stripe) per
+comprare Plus da soli. Per questa fase di test tra amici è stato deciso di
+non attivarlo — nessun soldo reale si muove finché non lo si collega
+esplicitamente in futuro.
+
 ## Prossimi passi
 
 1. Raccogliere il feedback del test con amici e sistemare quello che emerge
@@ -161,5 +180,8 @@ Per aggiungere un altro amministratore in futuro:
    fidato.
 5. Foto su Supabase Storage invece che incorporata nel profilo come
    immagine compressa.
-6. Solo alla fine: sostituire il frontend HTML con un'app vera (React
+6. Pagamenti veri (Stripe) per acquistare Plus da soli, quando si sarà
+   pronti a incassare — prezzo e IVA da decidere con un commercialista,
+   come già indicato nel piano.
+7. Solo alla fine: sostituire il frontend HTML con un'app vera (React
    Native), quando il meccanismo sarà validato.

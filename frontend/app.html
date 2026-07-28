@@ -1077,6 +1077,14 @@
           ${status.match.name}
         </div>`;
       document.getElementById('ticketForm').hidden = false;
+    } else if (status.status === 'limit_reached') {
+      if (proposalPollTimer) clearInterval(proposalPollTimer);
+      el.innerHTML = `
+        <div class="match-card" style="border-color: var(--corallo)">
+          <strong>È un doppio sì!</strong><br/>
+          Hai già usato il tuo match gratuito di oggi.<br/>
+          Passa a <strong>Meelu Plus</strong> per vederlo subito — presto disponibile.
+        </div>`;
     } else if (status.status === 'declined_by_me' || status.status === 'expired') {
       if (proposalPollTimer) clearInterval(proposalPollTimer);
       el.textContent = status.status === 'declined_by_me'

@@ -150,6 +150,7 @@
         <div class="stat-card"><div class="value" id="statProposals">–</div><div class="label">Proposte totali</div></div>
         <div class="stat-card"><div class="value" id="statMatches">–</div><div class="label">Doppi sì (match)</div></div>
         <div class="stat-card"><div class="value" id="statInvites">–</div><div class="label">Inviti riscattati</div></div>
+        <div class="stat-card"><div class="value" id="statPlus">–</div><div class="label">Utenti Plus</div></div>
       </div>
     </section>
 
@@ -169,6 +170,7 @@
               <th>Interessi</th>
               <th>Verificato</th>
               <th>Disponibile ora</th>
+              <th>Piano</th>
               <th>Iscritto il</th>
             </tr>
           </thead>
@@ -278,6 +280,7 @@
     document.getElementById('statProposals').textContent = stats.total_proposals;
     document.getElementById('statMatches').textContent = stats.total_matches;
     document.getElementById('statInvites').textContent = stats.invite_redemptions;
+    document.getElementById('statPlus').textContent = stats.plus_users;
   }
 
   function renderUsers() {
@@ -332,12 +335,42 @@
       availableBadge.textContent = u.is_available ? 'Sì' : 'No';
       tdAvailable.appendChild(availableBadge);
 
+      const tdPlan = document.createElement('td');
+      const planBadge = document.createElement('span');
+      planBadge.className = `badge ${u.plan === 'plus' ? 'on' : 'off'}`;
+      planBadge.textContent = u.plan === 'plus' ? 'Plus' : 'Free';
+      const planBtn = document.createElement('button');
+      planBtn.className = 'secondary';
+      planBtn.style.marginTop = '0';
+      planBtn.style.marginLeft = '8px';
+      planBtn.style.padding = '2px 10px';
+      planBtn.style.fontSize = '11.5px';
+      planBtn.textContent = u.plan === 'plus' ? 'Rendi Free' : 'Regala Plus';
+      planBtn.onclick = () => togglePlan(u.id, u.plan === 'plus' ? 'free' : 'plus');
+      tdPlan.append(planBadge, planBtn);
+
       const tdCreated = document.createElement('td');
       tdCreated.className = 'mono';
       tdCreated.textContent = fmtDate(u.created_at);
 
-      tr.append(tdPhoto, tdName, tdEmail, tdAge, tdInterests, tdVerified, tdAvailable, tdCreated);
+      tr.append(tdPhoto, tdName, tdEmail, tdAge, tdInterests, tdVerified, tdAvailable, tdPlan, tdCreated);
       tbody.appendChild(tr);
+    }
+  }
+
+  async function togglePlan(userId, newPlan) {
+    try {
+      const { data, error } = await db.rpc('admin_set_plan', { p_user_id: userId, p_plan: newPlan });
+      if (error) throw error;
+      if (!data) throw new Error('Utente non trovato.');
+      const { data: fresh, error: refreshError } = await db.rpc('admin_dashboard');
+      if (refreshError) throw refreshError;
+      dashboardData = fresh;
+      renderStats(fresh.stats);
+      renderUsers();
+      renderProposals(fresh.proposals);
+    } catch (err) {
+      alert(`Errore: ${err.message}`);
     }
   }
 
