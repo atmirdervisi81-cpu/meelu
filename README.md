@@ -110,6 +110,25 @@ npm start     # avvia il server su http://localhost:3000
    proposto, rompighiaccio, codice di sicurezza a 4 cifre) tramite
    `create_meeting_ticket`.
 
+## Notifiche push
+
+Toccando "Attiva notifiche" (dentro l'app, dopo il login) il browser chiede il
+permesso e registra il dispositivo. Quando una proposta diventa `matched`, la
+funzione Supabase `send-match-push` invia una notifica push reale all'altra
+persona — arriva anche a browser chiuso, perché la consegna passa dal
+service worker (`frontend/sw.js`), non dalla pagina aperta.
+
+**Limite noto su iPhone**: Safari supporta le notifiche push solo per pagine
+aggiunte alla schermata Home ("Aggiungi a Home" dall'icona di condivisione),
+non nel browser normale — è una restrizione di Apple, non aggirabile lato
+nostro. Su Android/desktop funziona nel browser normale.
+
+Le chiavi VAPID e la `service_role` key usate dalla funzione sono
+incorporate nel codice della funzione stessa (non in variabili d'ambiente
+separate), perché questa sessione non ha un vault/secrets manager collegato
+al progetto Supabase — sono visibili solo a chi ha accesso alla dashboard del
+progetto, mai al browser di chi usa l'app.
+
 ## Prossimi passi
 
 1. Raccogliere il feedback del test con amici e sistemare quello che emerge
