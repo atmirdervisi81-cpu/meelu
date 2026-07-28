@@ -169,6 +169,26 @@ comprare Plus da soli. Per questa fase di test tra amici è stato deciso di
 non attivarlo — nessun soldo reale si muove finché non lo si collega
 esplicitamente in futuro.
 
+## Blocco e segnalazione
+
+Su ogni persona vicina (prima ancora di proporre un incontro) e su chi si
+è rivelato dopo un doppio sì, c'è un tasto **"Blocca"**: chi blocchi
+sparisce dalla tua ricerca e tu sparisci dalla sua (regola applicata dentro
+`availability select active`, non aggirabile dal client). Se esisteva già
+una proposta aperta tra voi due, `respond_to_proposal` la chiude sempre,
+qualunque cosa rispondiate.
+
+Dopo un match, c'è anche **"Segnala"**: sceglie un motivo (comportamento
+molesto, falsa identità, contenuto inappropriato, comportamento
+pericoloso, altro) più un dettaglio facoltativo. Le segnalazioni sono
+visibili solo nel pannello admin, dove puoi metterle "in revisione" o
+"chiudi" con un tocco — non c'è ancora un vero team di moderazione dietro,
+solo te per ora.
+
+**Limite noto**: bloccare o segnalare qualcuno non nasconde retroattivamente
+un match o un biglietto già rivelati prima del blocco — vale solo per il
+futuro (nuove ricerche, nuove proposte).
+
 ## Prossimi passi
 
 1. Raccogliere il feedback del test con amici e sistemare quello che emerge

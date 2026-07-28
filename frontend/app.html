@@ -50,13 +50,14 @@
     margin: 0 0 12px;
   }
   label { display: block; font-size: 13px; margin: 10px 0 4px; color: #4a4652; }
-  input, textarea {
+  input, textarea, select {
     width: 100%;
     padding: 9px 10px;
     border-radius: 8px;
     border: 1px solid #d8d5d0;
     font-family: inherit;
     font-size: 14px;
+    background: #fff;
   }
   button {
     margin-top: 12px;
@@ -312,6 +313,24 @@
         <button class="btn-secondary" onclick="respondProposal('decline')">No, non ora</button>
       </div>
       <div id="proposalStatus" class="status" hidden></div>
+
+      <div id="reportForm" hidden style="margin-top:12px">
+        <label for="reportReason">Motivo della segnalazione</label>
+        <select id="reportReason">
+          <option value="molestie">Comportamento molesto</option>
+          <option value="falsa_identita">Falsa identità</option>
+          <option value="contenuto_inappropriato">Contenuto inappropriato</option>
+          <option value="comportamento_pericoloso">Comportamento pericoloso</option>
+          <option value="altro">Altro</option>
+        </select>
+        <label for="reportDetails">Dettagli (facoltativo)</label>
+        <input id="reportDetails" placeholder="Racconta cosa è successo" />
+        <div class="btn-row">
+          <button class="btn-primary" onclick="submitReport()">Invia segnalazione</button>
+          <button class="btn-secondary" onclick="document.getElementById('reportForm').hidden = true">Annulla</button>
+        </div>
+        <div id="reportStatus" class="status" hidden></div>
+      </div>
 
       <div id="ticketForm" hidden>
         <h2 style="margin-top:18px">4. Biglietto d'incontro</h2>
@@ -984,15 +1003,63 @@
         const div = document.createElement('div');
         div.className = 'candidate';
         div.innerHTML = `<div>Interessi in comune: ${c.common.join(', ')}</div><small>a circa ${c.distance} m</small>`;
+        const row = document.createElement('div');
+        row.className = 'btn-row';
         const btn = document.createElement('button');
         btn.className = 'btn-primary';
         btn.textContent = 'Proponi un incontro';
         btn.onclick = () => proposeTo(c.userId, c.common);
-        div.appendChild(btn);
+        const blockBtn = document.createElement('button');
+        blockBtn.className = 'btn-secondary';
+        blockBtn.textContent = 'Blocca';
+        blockBtn.onclick = () => blockUser(c.userId);
+        row.append(btn, blockBtn);
+        div.appendChild(row);
         container.appendChild(div);
       }
     } catch (err) {
       renderStateCard('availabilityStatus', 'err', `Errore: ${err.message}`);
+    }
+  }
+
+  async function blockUser(userId) {
+    if (!confirm('Bloccare questa persona? Non la vedrai più tra le persone vicine, e lei non vedrà più te.')) {
+      return;
+    }
+    try {
+      const { data: { user } } = await db.auth.getUser();
+      const { error } = await db.from('blocks').insert({ blocker_id: user.id, blocked_id: userId });
+      if (error && error.code !== '23505') throw error; // 23505 = già bloccato: va bene comunque
+      alert('Persona bloccata.');
+      loadMatches();
+    } catch (err) {
+      alert(`Errore: ${err.message}`);
+    }
+  }
+
+  let reportTargetUserId = null;
+
+  function openReportForm(userId) {
+    reportTargetUserId = userId;
+    document.getElementById('reportForm').hidden = false;
+  }
+
+  async function submitReport() {
+    try {
+      const reason = document.getElementById('reportReason').value;
+      const details = document.getElementById('reportDetails').value.trim() || null;
+      const { data: { user } } = await db.auth.getUser();
+      const { error } = await db.from('reports').insert({
+        reporter_id: user.id,
+        reported_id: reportTargetUserId,
+        reason,
+        details,
+      });
+      if (error) throw error;
+      document.getElementById('reportForm').hidden = true;
+      showStatus('reportStatus', 'Segnalazione inviata. Grazie, la esamineremo.');
+    } catch (err) {
+      showStatus('reportStatus', `Errore: ${err.message}`, true);
     }
   }
 
@@ -1075,6 +1142,10 @@
           <strong>È un doppio sì!</strong><br/>
           ${status.match.photoUrl ? `<img src="${status.match.photoUrl}" width="72" style="border-radius:50%;margin:8px 0" /><br/>` : ''}
           ${status.match.name}
+          <div class="btn-row" style="justify-content:center; margin-top:10px">
+            <button class="btn-secondary" onclick="blockUser('${status.match.userId}')">Blocca</button>
+            <button class="btn-secondary" onclick="openReportForm('${status.match.userId}')">Segnala</button>
+          </div>
         </div>`;
       document.getElementById('ticketForm').hidden = false;
     } else if (status.status === 'limit_reached') {

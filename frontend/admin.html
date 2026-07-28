@@ -119,6 +119,7 @@
   .badge.matched { background: rgba(31, 169, 126, 0.15); color: #14785f; }
   .badge.open { background: rgba(75, 63, 140, 0.12); color: var(--indaco); }
   .badge.closed { background: #ece9e4; color: #6b6673; }
+  .badge.err { background: rgba(255, 90, 60, 0.15); color: #c23616; }
   .mono { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: #4a4652; }
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap; }
   .toolbar input { max-width: 260px; margin: 0; }
@@ -151,6 +152,7 @@
         <div class="stat-card"><div class="value" id="statMatches">–</div><div class="label">Doppi sì (match)</div></div>
         <div class="stat-card"><div class="value" id="statInvites">–</div><div class="label">Inviti riscattati</div></div>
         <div class="stat-card"><div class="value" id="statPlus">–</div><div class="label">Utenti Plus</div></div>
+        <div class="stat-card"><div class="value" id="statReports">–</div><div class="label">Segnalazioni aperte</div></div>
       </div>
     </section>
 
@@ -192,6 +194,26 @@
             </tr>
           </thead>
           <tbody id="proposalsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Segnalazioni</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Chi segnala</th>
+              <th>Chi è segnalato</th>
+              <th>Motivo</th>
+              <th>Dettagli</th>
+              <th>Stato</th>
+              <th>Creata il</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="reportsBody"></tbody>
         </table>
       </div>
     </section>
@@ -254,6 +276,7 @@
       renderStats(data.stats);
       renderUsers();
       renderProposals(data.proposals);
+      renderReports(data.reports);
 
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(async () => {
@@ -263,6 +286,7 @@
           renderStats(fresh.stats);
           renderUsers();
           renderProposals(fresh.proposals);
+      renderReports(fresh.reports);
         }
       }, 30000);
     } catch (err) {
@@ -281,6 +305,7 @@
     document.getElementById('statMatches').textContent = stats.total_matches;
     document.getElementById('statInvites').textContent = stats.invite_redemptions;
     document.getElementById('statPlus').textContent = stats.plus_users;
+    document.getElementById('statReports').textContent = stats.open_reports;
   }
 
   function renderUsers() {
@@ -369,6 +394,7 @@
       renderStats(fresh.stats);
       renderUsers();
       renderProposals(fresh.proposals);
+      renderReports(fresh.reports);
     } catch (err) {
       alert(`Errore: ${err.message}`);
     }
@@ -405,6 +431,84 @@
 
       tr.append(tdWho, tdInterests, tdStatus, tdCreated);
       tbody.appendChild(tr);
+    }
+  }
+
+  function renderReports(reports) {
+    const tbody = document.getElementById('reportsBody');
+    tbody.innerHTML = '';
+
+    if (!reports || reports.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-row">Nessuna segnalazione.</td></tr>';
+      return;
+    }
+
+    const reasonLabels = {
+      molestie: 'Comportamento molesto',
+      falsa_identita: 'Falsa identità',
+      contenuto_inappropriato: 'Contenuto inappropriato',
+      comportamento_pericoloso: 'Comportamento pericoloso',
+      altro: 'Altro',
+    };
+    const statusLabels = { aperta: 'Aperta', in_revisione: 'In revisione', chiusa: 'Chiusa' };
+    const statusClass = { aperta: 'err', in_revisione: 'open', chiusa: 'closed' };
+
+    for (const r of reports) {
+      const tr = document.createElement('tr');
+
+      const tdReporter = document.createElement('td');
+      tdReporter.textContent = r.reporter_name;
+
+      const tdReported = document.createElement('td');
+      tdReported.textContent = r.reported_name;
+
+      const tdReason = document.createElement('td');
+      tdReason.textContent = reasonLabels[r.reason] || r.reason;
+
+      const tdDetails = document.createElement('td');
+      tdDetails.textContent = r.details || '—';
+
+      const tdStatus = document.createElement('td');
+      const badge = document.createElement('span');
+      badge.className = `badge ${statusClass[r.status] || 'off'}`;
+      badge.textContent = statusLabels[r.status] || r.status;
+      tdStatus.appendChild(badge);
+
+      const tdCreated = document.createElement('td');
+      tdCreated.className = 'mono';
+      tdCreated.textContent = fmtDate(r.created_at);
+
+      const tdAction = document.createElement('td');
+      if (r.status !== 'chiusa') {
+        const btn = document.createElement('button');
+        btn.className = 'secondary';
+        btn.style.marginTop = '0';
+        btn.style.padding = '4px 12px';
+        btn.style.fontSize = '12px';
+        const nextStatus = r.status === 'aperta' ? 'in_revisione' : 'chiusa';
+        btn.textContent = r.status === 'aperta' ? 'Metti in revisione' : 'Chiudi';
+        btn.onclick = () => updateReportStatus(r.id, nextStatus);
+        tdAction.appendChild(btn);
+      }
+
+      tr.append(tdReporter, tdReported, tdReason, tdDetails, tdStatus, tdCreated, tdAction);
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function updateReportStatus(reportId, newStatus) {
+    try {
+      const { error } = await db.rpc('admin_update_report_status', { p_report_id: reportId, p_status: newStatus });
+      if (error) throw error;
+      const { data: fresh, error: refreshError } = await db.rpc('admin_dashboard');
+      if (refreshError) throw refreshError;
+      dashboardData = fresh;
+      renderStats(fresh.stats);
+      renderUsers();
+      renderProposals(fresh.proposals);
+      renderReports(fresh.reports);
+    } catch (err) {
+      alert(`Errore: ${err.message}`);
     }
   }
 
