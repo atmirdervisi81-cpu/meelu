@@ -149,6 +149,22 @@
     background: #ece9e4;
   }
   .leaflet-popup-content { font-family: Inter, sans-serif; font-size: 13px; }
+  .chips.readonly { margin-bottom: 4px; }
+  .chips.readonly .chip { cursor: default; background: rgba(75, 63, 140, 0.1); color: var(--indaco); font-weight: 600; }
+  .state-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-top: 10px;
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .state-card .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: currentColor; }
+  .state-card.on { background: rgba(31, 169, 126, 0.12); color: #14785f; }
+  .state-card.off { background: #f1efec; color: #4a4652; }
+  .state-card.err { background: rgba(255, 90, 60, 0.12); color: #c23616; }
 </style>
 </head>
 <body>
@@ -213,6 +229,7 @@
         <button class="btn-secondary" onclick="signOut()">Esci</button>
       </span>
     </div>
+    <div id="myInterestsChips" class="chips readonly" style="margin-bottom:16px"></div>
 
     <section>
       <h2>Notifiche</h2>
@@ -393,6 +410,32 @@
     el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   }
 
+  // stato "vivo" (pallino colorato + messaggio) usato per disponibilità e notifiche,
+  // al posto del testo in stile debug.
+  function renderStateCard(elId, kind, message) {
+    const el = document.getElementById(elId);
+    el.hidden = false;
+    el.className = `state-card ${kind}`;
+    el.innerHTML = '';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    const text = document.createElement('span');
+    text.textContent = message;
+    el.appendChild(dot);
+    el.appendChild(text);
+  }
+
+  function renderMyInterests(interests) {
+    const container = document.getElementById('myInterestsChips');
+    container.innerHTML = '';
+    for (const interest of interests || []) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = interest;
+      container.appendChild(chip);
+    }
+  }
+
   function fileToResizedDataUrl(file, maxDim = 240, quality = 0.72) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -482,6 +525,7 @@
     if (profile) {
       showAppScreen();
       document.getElementById('meName').textContent = profile.name;
+      renderMyInterests(profile.interests);
     } else {
       editingProfile = false;
       document.getElementById('inviteCodeGroup').hidden = false;
@@ -517,7 +561,7 @@
       document.getElementById('screen-app').hidden = true;
       document.getElementById('screen-profile').hidden = false;
     } catch (err) {
-      showStatus('availabilityStatus', `Errore: ${err.message}`, true);
+      renderStateCard('availabilityStatus', 'err', `Errore: ${err.message}`);
     }
   }
 
@@ -544,6 +588,7 @@
       editingProfile = false;
       showAppScreen();
       document.getElementById('meName').textContent = name;
+      renderMyInterests(interests);
     } catch (err) {
       showStatus('profileStatus', `Errore: ${err.message}`, true);
     }
@@ -578,6 +623,7 @@
 
       showAppScreen();
       document.getElementById('meName').textContent = name;
+      renderMyInterests(interests);
     } catch (err) {
       showStatus('profileStatus', `Errore: ${err.message}`, true);
     }
@@ -601,9 +647,13 @@
         });
         if (error) throw error;
         updateMeOnMap(lat, lng, radiusM);
-        showStatus('availabilityStatus', `Disponibile (raggio ${radiusM} m) fino alle ${new Date(expiresAt).toLocaleTimeString('it-IT')}.`);
+        renderStateCard(
+          'availabilityStatus',
+          'on',
+          `Sei visibile a chi è vicino e condivide i tuoi interessi (raggio ${radiusM} m), fino alle ${new Date(expiresAt).toLocaleTimeString('it-IT')}.`
+        );
       } catch (err) {
-        showStatus('availabilityStatus', `Errore: ${err.message}`, true);
+        renderStateCard('availabilityStatus', 'err', `Errore: ${err.message}`);
       }
     });
   }
@@ -640,23 +690,23 @@
       );
       if (error) throw error;
 
-      showStatus('pushStatus', 'Notifiche attivate: riceverai un avviso anche a pagina chiusa quando c\'è un doppio sì.');
+      renderStateCard('pushStatus', 'on', "Notifiche attivate: riceverai un avviso anche a pagina chiusa quando c'è un doppio sì.");
     } catch (err) {
-      showStatus('pushStatus', `Errore: ${err.message}`, true);
+      renderStateCard('pushStatus', 'err', `Errore: ${err.message}`);
     }
   }
 
   async function goOffline() {
     const { data: { user } } = await db.auth.getUser();
     await db.from('availability').delete().eq('user_id', user.id);
-    showStatus('availabilityStatus', 'Disponibilità disattivata.');
+    renderStateCard('availabilityStatus', 'off', 'Disponibilità disattivata: non sei visibile a nessuno.');
   }
 
   async function loadMatches() {
     try {
       const { data: { user } } = await db.auth.getUser();
       const { data: mine } = await db.from('availability').select('*').eq('user_id', user.id).maybeSingle();
-      if (!mine) return showStatus('availabilityStatus', 'Attiva prima "Sono libero/a ora".', true);
+      if (!mine) return renderStateCard('availabilityStatus', 'err', 'Attiva prima "Sono libero/a ora".');
 
       const cells = neighborCells(mine.lat, mine.lng, mine.radius_m);
       const { data: rows, error } = await db.from('availability')
@@ -709,7 +759,7 @@
         container.appendChild(div);
       }
     } catch (err) {
-      showStatus('availabilityStatus', `Errore: ${err.message}`, true);
+      renderStateCard('availabilityStatus', 'err', `Errore: ${err.message}`);
     }
   }
 
@@ -742,7 +792,7 @@
       await refreshProposalStatus();
       startProposalPolling();
     } catch (err) {
-      showStatus('availabilityStatus', `Errore: ${err.message}`, true);
+      renderStateCard('availabilityStatus', 'err', `Errore: ${err.message}`);
     }
   }
 
