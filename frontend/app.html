@@ -277,6 +277,10 @@
 
     <section>
       <h2>Notifiche</h2>
+      <div class="sub" style="margin:0 0 10px">
+        Toccando "Attiva" il telefono ti chiederà un permesso: tocca <strong>Consenti</strong>
+        (se tocchi per sbaglio "Blocca", andrà sistemato a mano dalle impostazioni del browser).
+      </div>
       <div class="btn-row">
         <button class="btn-secondary" onclick="enablePushNotifications()">Attiva notifiche</button>
         <button class="btn-secondary" onclick="disablePushNotifications()">Disattiva notifiche</button>
@@ -897,6 +901,12 @@
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         throw new Error(
           'Il tuo browser non supporta le notifiche push (su iPhone: aggiungi prima questa pagina alla schermata Home).'
+        );
+      }
+
+      if (Notification.permission === 'denied') {
+        throw new Error(
+          'Le notifiche risultano già bloccate per questa pagina (a volte succede automaticamente, non per una scelta tua o della persona che le usa). Vanno sbloccate dalle impostazioni del browser prima di riprovare.'
         );
       }
 
