@@ -712,7 +712,12 @@
       document.getElementById('name').value = profile.name || '';
       document.getElementById('birthYear').value = profile.birth_year || '';
       selectedInterests.clear();
-      for (const i of profile.interests || []) selectedInterests.add(i);
+      // scarta eventuali interessi scritti a mano prima che esistessero i tag:
+      // non hanno un tag da mostrare/deselezionare, quindi andrebbero solo a
+      // sommarsi in silenzio a quelli nuovi.
+      for (const i of profile.interests || []) {
+        if (INTEREST_OPTIONS.includes(i)) selectedInterests.add(i);
+      }
       renderInterestChips();
 
       document.getElementById('inviteCodeGroup').hidden = true;
