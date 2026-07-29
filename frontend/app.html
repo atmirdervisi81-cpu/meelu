@@ -248,6 +248,18 @@
     <div id="interestChips" class="chips"></div>
     <label for="photo">Foto (visibile solo dopo un doppio sì)</label>
     <input id="photo" type="file" accept="image/*" />
+    <label for="trustedContactName">Contatto di fiducia (facoltativo)</label>
+    <input id="trustedContactName" placeholder="es. Marco (tuo fratello)" />
+    <label for="trustedContactPhone">Telefono del contatto di fiducia (facoltativo)</label>
+    <input id="trustedContactPhone" type="tel" placeholder="es. +39 333 1234567" />
+    <div class="sub" style="margin:4px 0 0">
+      Lo useremo solo nel pulsante "Condividi il mio incontro", per mandargli i dettagli
+      dell'incontro se vuoi. Non lo vede nessun altro.
+    </div>
+    <label class="check-row" for="ageConfirm" style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <input id="ageConfirm" type="checkbox" style="width:auto" />
+      Confermo di avere almeno 18 anni.
+    </label>
     <div class="btn-row">
       <button id="profileSubmitBtn" class="btn-primary" onclick="createProfile()">Crea profilo</button>
       <button id="cancelEditBtn" class="btn-secondary" onclick="cancelEditProfile()" hidden>Annulla</button>
@@ -336,6 +348,30 @@
         <div id="reportStatus" class="status" hidden></div>
       </div>
 
+      <div id="safetySection" hidden style="margin-top:16px">
+        <h2 style="margin-top:0">Sicurezza</h2>
+        <div class="btn-row">
+          <a href="tel:112" class="btn-secondary" style="text-decoration:none;text-align:center">Emergenza · 112</a>
+          <button class="btn-secondary" onclick="shareMeeting()">Condividi il mio incontro</button>
+        </div>
+        <div class="sub" style="margin:4px 0 0">
+          Condividi luogo, orario e i dati dell'altra persona con il tuo contatto di fiducia.
+        </div>
+        <div id="shareStatus" class="status" hidden></div>
+      </div>
+
+      <div id="chatSection" hidden style="margin-top:16px">
+        <h2 style="margin-top:0">Chat pre-incontro</h2>
+        <div class="sub">Disponibile per 3 ore dal match, solo per organizzare l'incontro.</div>
+        <div id="chatMessages" style="max-height:220px;overflow-y:auto;border:1px solid #ddd;border-radius:8px;padding:8px;margin:8px 0"></div>
+        <div id="chatClosedNotice" class="sub" hidden>La chat si è chiusa (sono passate più di 3 ore dal match).</div>
+        <div class="btn-row" id="chatInputRow">
+          <input id="chatInput" placeholder="Scrivi un messaggio..." style="flex:1" maxlength="500" />
+          <button class="btn-primary" onclick="sendChatMessage()">Invia</button>
+        </div>
+        <div id="chatStatus" class="status" hidden></div>
+      </div>
+
       <div id="ticketForm" hidden>
         <h2 style="margin-top:18px">4. Biglietto d'incontro</h2>
         <label for="place">Luogo</label>
@@ -358,6 +394,18 @@
         <button class="btn-primary" onclick="createTicket()">Genera biglietto</button>
         <div id="ticketStatus" class="status" hidden></div>
       </div>
+
+      <div id="feedbackForm" hidden style="margin-top:16px">
+        <h2 style="margin-top:0">Com'è andata?</h2>
+        <div class="sub">La tua risposta non è mai visibile all'altra persona, solo in forma aggregata.</div>
+        <div class="btn-row">
+          <button class="btn-verde" onclick="submitFeedback(true)">È andata bene</button>
+          <button class="btn-secondary" onclick="submitFeedback(false)">Non è andata bene</button>
+        </div>
+        <label for="feedbackNote">Note (facoltativo)</label>
+        <input id="feedbackNote" placeholder="Racconta com'è andata" />
+        <div id="feedbackStatus" class="status" hidden></div>
+      </div>
     </section>
   </div>
 </main>
@@ -375,6 +423,14 @@
   let currentProposalId = null;
   let editingProfile = false;
   let proposalPollTimer = null;
+  let currentMatchInfo = null;
+  let chatPollTimer = null;
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
 
   // ---- matching (stessa logica del backend, eseguita qui nel browser) ----
   function toCellIndex(v) { return Math.floor(v / CELL_SIZE_DEG); }
@@ -774,6 +830,9 @@
       editingProfile = true;
       document.getElementById('name').value = profile.name || '';
       document.getElementById('birthYear').value = profile.birth_year || '';
+      document.getElementById('trustedContactName').value = profile.trusted_contact_name || '';
+      document.getElementById('trustedContactPhone').value = profile.trusted_contact_phone || '';
+      document.getElementById('ageConfirm').checked = true;
       selectedInterests.clear();
       // scarta eventuali interessi scritti a mano prima che esistessero i tag:
       // non hanno un tag da mostrare/deselezionare, quindi andrebbero solo a
@@ -807,11 +866,17 @@
     const birthYear = Number(document.getElementById('birthYear').value) || null;
     const interests = Array.from(selectedInterests);
     const photoFile = document.getElementById('photo').files[0];
+    const trustedContactName = document.getElementById('trustedContactName').value.trim() || null;
+    const trustedContactPhone = document.getElementById('trustedContactPhone').value.trim() || null;
 
     try {
       if (interests.length === 0) throw new Error('Scegli almeno un interesse.');
       const { data: { user } } = await db.auth.getUser();
-      const patch = { name, birth_year: birthYear, interests };
+      const patch = {
+        name, birth_year: birthYear, interests,
+        trusted_contact_name: trustedContactName,
+        trusted_contact_phone: trustedContactPhone,
+      };
       if (photoFile) patch.photo_url = await fileToResizedDataUrl(photoFile);
 
       const { error } = await db.from('users').update(patch).eq('id', user.id);
@@ -833,10 +898,17 @@
     const birthYear = Number(document.getElementById('birthYear').value) || null;
     const interests = Array.from(selectedInterests);
     const photoFile = document.getElementById('photo').files[0];
+    const trustedContactName = document.getElementById('trustedContactName').value.trim() || null;
+    const trustedContactPhone = document.getElementById('trustedContactPhone').value.trim() || null;
+    const ageConfirmed = document.getElementById('ageConfirm').checked;
 
     try {
       if (!code) throw new Error('Serve un codice invito valido.');
       if (interests.length === 0) throw new Error('Scegli almeno un interesse.');
+      if (!ageConfirmed) throw new Error('Devi confermare di avere almeno 18 anni per usare Meelu.');
+      if (!birthYear || (new Date().getFullYear() - birthYear) < 18) {
+        throw new Error('Meelu è riservato a maggiorenni: controlla l\'anno di nascita.');
+      }
       const { data: redeemed, error: redeemError } = await db.rpc('redeem_invite_code', { p_code: code });
       if (redeemError) throw redeemError;
       if (!redeemed) throw new Error('Codice invito non valido o già usato. Chiedi a chi ti ha invitato un codice nuovo.');
@@ -851,6 +923,8 @@
         interests,
         photo_url: photoUrl,
         verified: true,
+        trusted_contact_name: trustedContactName,
+        trusted_contact_phone: trustedContactPhone,
       });
       if (insertError) throw insertError;
 
@@ -1145,10 +1219,19 @@
       }
 
       currentProposalId = proposal.id;
+      currentMatchInfo = null;
+      if (chatPollTimer) clearInterval(chatPollTimer);
       document.getElementById('proposalSection').hidden = false;
       document.getElementById('ticketForm').hidden = true;
+      document.getElementById('safetySection').hidden = true;
+      document.getElementById('chatSection').hidden = true;
+      document.getElementById('feedbackForm').hidden = true;
+      document.getElementById('chatMessages').innerHTML = '';
       await refreshProposalStatus();
       startProposalPolling();
+      if (!existing) {
+        db.functions.invoke('send-proposal-push', { body: { proposalId: proposal.id } }).catch(() => {});
+      }
     } catch (err) {
       renderStateCard('availabilityStatus', 'err', `Errore: ${err.message}`);
     }
@@ -1195,17 +1278,21 @@
     el.classList.remove('error');
     if (status.status === 'matched') {
       if (proposalPollTimer) clearInterval(proposalPollTimer);
+      currentMatchInfo = status.match;
       el.innerHTML = `
         <div class="match-card">
           <strong>È un doppio sì!</strong><br/>
           ${status.match.photoUrl ? `<img src="${status.match.photoUrl}" width="72" style="border-radius:50%;margin:8px 0" /><br/>` : ''}
-          ${status.match.name}
+          ${escapeHtml(status.match.name)}
           <div class="btn-row" style="justify-content:center; margin-top:10px">
             <button class="btn-secondary" onclick="blockUser('${status.match.userId}')">Blocca</button>
             <button class="btn-secondary" onclick="openReportForm('${status.match.userId}')">Segnala</button>
           </div>
         </div>`;
       document.getElementById('ticketForm').hidden = false;
+      document.getElementById('safetySection').hidden = false;
+      document.getElementById('feedbackForm').hidden = false;
+      setupChat(status.match.matchedAt);
     } else if (status.status === 'limit_reached') {
       if (proposalPollTimer) clearInterval(proposalPollTimer);
       el.innerHTML = `
@@ -1223,6 +1310,128 @@
       el.textContent = status.status === 'waiting'
         ? 'In attesa della risposta dell\'altra persona...'
         : 'Proposta in attesa di una tua risposta.';
+    }
+  }
+
+  function setupChat(matchedAt) {
+    const chatSection = document.getElementById('chatSection');
+    const inputRow = document.getElementById('chatInputRow');
+    const closedNotice = document.getElementById('chatClosedNotice');
+    chatSection.hidden = false;
+    const chatEndsAt = new Date(matchedAt).getTime() + 3 * 60 * 60000;
+
+    if (Date.now() > chatEndsAt) {
+      if (chatPollTimer) clearInterval(chatPollTimer);
+      inputRow.hidden = true;
+      closedNotice.hidden = false;
+      return;
+    }
+
+    inputRow.hidden = false;
+    closedNotice.hidden = true;
+    loadChatMessages();
+    if (chatPollTimer) clearInterval(chatPollTimer);
+    chatPollTimer = setInterval(() => {
+      if (Date.now() > chatEndsAt) {
+        clearInterval(chatPollTimer);
+        inputRow.hidden = true;
+        closedNotice.hidden = false;
+        return;
+      }
+      loadChatMessages();
+    }, 4000);
+  }
+
+  async function loadChatMessages() {
+    if (!currentProposalId) return;
+    try {
+      const { data, error } = await db.from('messages')
+        .select('*')
+        .eq('proposal_id', currentProposalId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      const { data: { user } } = await db.auth.getUser();
+      const container = document.getElementById('chatMessages');
+      container.innerHTML = data.map((m) => {
+        const mine = m.sender_id === user.id;
+        return `<div style="text-align:${mine ? 'right' : 'left'};margin:4px 0">
+          <span style="display:inline-block;background:${mine ? 'var(--indaco)' : '#eee'};color:${mine ? '#fff' : '#222'};padding:6px 10px;border-radius:10px;max-width:80%">${escapeHtml(m.body)}</span>
+        </div>`;
+      }).join('');
+      container.scrollTop = container.scrollHeight;
+    } catch (err) {
+      showStatus('chatStatus', `Errore: ${err.message}`, true);
+    }
+  }
+
+  async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const body = input.value.trim();
+    if (!body || !currentProposalId) return;
+    try {
+      const { data: { user } } = await db.auth.getUser();
+      const { error } = await db.from('messages').insert({
+        proposal_id: currentProposalId,
+        sender_id: user.id,
+        body,
+      });
+      if (error) throw error;
+      input.value = '';
+      loadChatMessages();
+    } catch (err) {
+      showStatus('chatStatus', `Errore: ${err.message}`, true);
+    }
+  }
+
+  async function shareMeeting() {
+    if (!currentMatchInfo || !currentProposalId) return;
+    try {
+      const place = document.getElementById('place').value.trim();
+      const suggestedTime = document.getElementById('suggestedTime').value.trim();
+      const text = [
+        `Sto per incontrare ${currentMatchInfo.name} tramite Meelu.`,
+        place ? `Luogo: ${place}` : null,
+        suggestedTime ? `Orario: ${suggestedTime}` : null,
+      ].filter(Boolean).join('\n');
+
+      const { data: { user } } = await db.auth.getUser();
+      const { data: profile } = await db.from('users')
+        .select('trusted_contact_name, trusted_contact_phone').eq('id', user.id).single();
+
+      if (navigator.share) {
+        await navigator.share({ title: 'Il mio incontro su Meelu', text });
+        showStatus('shareStatus', 'Condiviso.');
+      } else if (profile && profile.trusted_contact_phone) {
+        const phone = profile.trusted_contact_phone.replace(/[^\d+]/g, '');
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+        showStatus('shareStatus', `Aperto WhatsApp verso ${profile.trusted_contact_name || 'il tuo contatto'}.`);
+      } else {
+        await navigator.clipboard.writeText(text);
+        showStatus('shareStatus', 'Copiato negli appunti (aggiungi un contatto di fiducia nel profilo per condividere via WhatsApp).');
+      }
+    } catch (err) {
+      showStatus('shareStatus', `Errore: ${err.message}`, true);
+    }
+  }
+
+  async function submitFeedback(wentWell) {
+    if (!currentProposalId) return;
+    try {
+      const { data: { user } } = await db.auth.getUser();
+      const note = document.getElementById('feedbackNote').value.trim() || null;
+      const { error } = await db.from('meeting_feedback').insert({
+        proposal_id: currentProposalId,
+        user_id: user.id,
+        went_well: wentWell,
+        note,
+      });
+      if (error) throw error;
+      showStatus('feedbackStatus', 'Grazie del feedback!');
+      document.getElementById('feedbackNote').value = '';
+    } catch (err) {
+      showStatus('feedbackStatus', err.code === '23505'
+        ? 'Hai già dato un feedback per questo incontro.'
+        : `Errore: ${err.message}`, true);
     }
   }
 

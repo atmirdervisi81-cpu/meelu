@@ -153,6 +153,7 @@
         <div class="stat-card"><div class="value" id="statInvites">–</div><div class="label">Inviti riscattati</div></div>
         <div class="stat-card"><div class="value" id="statPlus">–</div><div class="label">Utenti Plus</div></div>
         <div class="stat-card"><div class="value" id="statReports">–</div><div class="label">Segnalazioni aperte</div></div>
+        <div class="stat-card"><div class="value" id="statFeedback">–</div><div class="label">Incontri andati bene</div></div>
       </div>
     </section>
 
@@ -306,6 +307,9 @@
     document.getElementById('statInvites').textContent = stats.invite_redemptions;
     document.getElementById('statPlus').textContent = stats.plus_users;
     document.getElementById('statReports').textContent = stats.open_reports;
+    document.getElementById('statFeedback').textContent = stats.feedback_positive_pct != null
+      ? `${stats.feedback_positive_pct}%`
+      : '–';
   }
 
   function renderUsers() {

@@ -169,6 +169,53 @@ comprare Plus da soli. Per questa fase di test tra amici è stato deciso di
 non attivarlo — nessun soldo reale si muove finché non lo si collega
 esplicitamente in futuro.
 
+## Età minima e contatto di fiducia
+
+La creazione del profilo richiede una spunta esplicita "Confermo di avere
+almeno 18 anni": senza spunta, o con un anno di nascita che risulterebbe in
+un'età inferiore, il profilo non si crea. Il database applica lo stesso
+limite in modo indipendente dal client (vincolo `check` sulla tabella
+`users`), quindi non è aggirabile forzando le richieste dal browser. Non è
+ancora una verifica d'identità vera (KYC): è un'autodichiarazione, come per
+la maggior parte dei social — un vero KYC richiederebbe un fornitore terzo
+a pagamento, fuori dallo scopo di questa fase di test.
+
+Nel profilo si può anche indicare (facoltativo) il nome e telefono di un
+**contatto di fiducia**: serve solo al pulsante "Condividi il mio incontro"
+(vedi sotto), nessun altro lo vede.
+
+## Chat pre-incontro, emergenza e condivisione
+
+Dopo un doppio sì compaiono, sotto il match:
+
+- **Chat pre-incontro**: messaggi diretti con l'altra persona, utile solo
+  per accordarsi su luogo e orario. Resta aperta per **3 ore** dal match:
+  passato quel tempo, il database stesso rifiuta letture e scritture
+  (`public.messages`, con regole RLS che controllano il doppio sì e le 3
+  ore), non solo l'interfaccia.
+- **Emergenza · 112**: link diretto per chiamare il numero unico di
+  emergenza italiano.
+- **Condividi il mio incontro**: invia (via la condivisione nativa del
+  telefono, o su WhatsApp se hai impostato un contatto di fiducia, o
+  copiandolo negli appunti come ultima opzione) chi stai per incontrare,
+  il luogo e l'orario proposto.
+
+## Feedback post-incontro
+
+Dopo un match compare "Com'è andata?" (bene / non bene + una nota
+facoltativa). Il tuo feedback **non è mai visibile** a nessuno
+individualmente, nemmeno all'altra persona o all'admin — nel pannello
+admin si vede solo la percentuale aggregata su tutti gli incontri
+(`meeting_feedback`, nessuna policy di lettura per riga, solo la funzione
+`admin_dashboard` può calcolarne l'aggregato).
+
+## Notifica anche per le nuove proposte
+
+Oltre alla notifica quando scatta un doppio sì, ora arriva una notifica
+push anche a chi riceve **una nuova proposta** (funzione Supabase
+`send-proposal-push`), non solo a match avvenuto — così non serve tenere
+l'app aperta in attesa.
+
 ## Blocco e segnalazione
 
 Su ogni persona vicina (prima ancora di proporre un incontro) e su chi si
@@ -193,15 +240,16 @@ futuro (nuove ricerche, nuove proposte).
 
 1. Raccogliere il feedback del test con amici e sistemare quello che emerge
    dall'uso reale.
-2. Login vero con verifica identità (KYC) al posto del semplice
-   "verificato · test amici" attuale, prima di aprire l'app a estranei.
-3. Chat pre-incontro a tempo.
-4. Pulsante di emergenza e condivisione dell'incontro con un contatto
-   fidato.
-5. Foto su Supabase Storage invece che incorporata nel profilo come
+2. Login vero con verifica identità (KYC) di un fornitore terzo, al posto
+   della sola autodichiarazione 18+ attuale, prima di aprire l'app a
+   estranei — richiede un account a pagamento con un fornitore esterno.
+3. Un dominio dedicato al posto di raw.githack.com — risolverebbe in modo
+   definitivo il blocco automatico delle notifiche che Chrome applica ad
+   alcuni domini condivisi (non dipende dal codice di Meelu).
+4. Foto su Supabase Storage invece che incorporata nel profilo come
    immagine compressa.
-6. Pagamenti veri (Stripe) per acquistare Plus da soli, quando si sarà
+5. Pagamenti veri (Stripe) per acquistare Plus da soli, quando si sarà
    pronti a incassare — prezzo e IVA da decidere con un commercialista,
    come già indicato nel piano.
-7. Solo alla fine: sostituire il frontend HTML con un'app vera (React
+6. Solo alla fine: sostituire il frontend HTML con un'app vera (React
    Native), quando il meccanismo sarà validato.
